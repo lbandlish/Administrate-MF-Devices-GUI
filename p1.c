@@ -11,36 +11,45 @@
 #include <sys/mman.h>
 
 GtkWidget	*window1;
-GtkWidget	*fixed1;
-GtkWidget	*grid1; 
+GtkWidget   *vbox;
+GtkWidget   *sw;
 GtkWidget	*label[100];   // Assuming limit of 100 devices
 GtkWidget	*button[100];  // Assuming limit of 100 devices
-GtkWidget	*view1;
-GtkBuilder	*builder; 
+GtkWidget   *hbox[100];
+
+char tmp[1024]; 
+int	row;
 
 void on_destroy(); 
 void on_row(GtkButton *);
 
-char tmp[1024]; 
-int	row;
 
 int main(int argc, char *argv[]) {
 
 	gtk_init(&argc, &argv); // init Gtk
 
-//---------------------------------------------------------------------
-// establish contact with xml code used to adjust widget settings
-//---------------------------------------------------------------------
- 
-	builder = gtk_builder_new_from_file ("gladefile.glade");
-	window1 = GTK_WIDGET(gtk_builder_get_object(builder, "window1"));
+	window1 = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_position(GTK_WINDOW(window1), GTK_WIN_POS_CENTER);
+	gtk_window_set_default_size(GTK_WINDOW(window1), 700, 400);
+	gtk_window_set_title(GTK_WINDOW(window1), "IPP Devices Available");
+	gtk_container_set_border_width(GTK_CONTAINER(window1), 10);
 
-	g_signal_connect(window1, "destroy", G_CALLBACK(on_destroy), NULL);
-    gtk_builder_connect_signals(builder, NULL);
 
-	fixed1 = GTK_WIDGET(gtk_builder_get_object(builder, "fixed1"));
-	view1 = GTK_WIDGET(gtk_builder_get_object(builder, "view1"));
-	grid1 = GTK_WIDGET(gtk_builder_get_object(builder, "grid1"));
+	sw = gtk_scrolled_window_new(NULL, NULL);
+	gtk_container_add(GTK_CONTAINER(window1), sw);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw),
+		GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(sw),
+		GTK_SHADOW_IN);
+
+
+
+	vbox = gtk_vbox_new(FALSE, 5);
+
+	gtk_widget_set_valign(vbox, GTK_ALIGN_END);
+
+	// gtk_container_add(GTK_CONTAINER(window1), vbox);
+	  gtk_container_add(GTK_CONTAINER(sw), vbox);
 
 	FILE *f1 = fopen("ipp_other_devices.txt", "r");
 
@@ -56,29 +65,28 @@ int main(int argc, char *argv[]) {
 			break;
 			}
 		tmp[strlen(tmp)-1] = 0; // remove newline byte
-		gtk_grid_insert_row (GTK_GRID(grid1), row);
 
-//		The following code will populate the grid with non-clicable labels
+//		A button can be freed by the function 'gtk_container_remove ()'		
 
-//		label[row] = gtk_label_new (tmp);
-//		gtk_label_set_justify (GTK_LABEL(label[row]), GTK_JUSTIFY_LEFT);
-//		gtk_label_set_xalign (GTK_LABEL(label[row]), 0.0);
-//		gtk_grid_attach (GTK_GRID(grid1), label[row], 1, row, 1, 1);
+		hbox[row] = gtk_hbox_new(FALSE, 3);
+		label[row] = gtk_label_new(tmp);
+		button[row] = gtk_button_new_with_label ("Manage");
 
-//		The following code will populate the grid with clickable buttons.
+		gtk_widget_set_size_request(label[row], 70, 30);
+		gtk_widget_set_halign(label[row], GTK_ALIGN_START);
+		gtk_container_add(GTK_CONTAINER(hbox[row]), label[row]);
 
-//		A button can be freed by the function 'gtk_container_remove ()'
+		gtk_widget_set_halign(button[row], GTK_ALIGN_END);
+		gtk_container_add(GTK_CONTAINER(hbox[row]), button[row]);
 
-        label[row] = gtk_label_new(tmp);
-		button[row] = gtk_button_new_with_label (tmp);
-		gtk_button_set_alignment (GTK_BUTTON(button[row]), 0.5, 0.5); 
-		gtk_grid_attach (GTK_GRID(grid1), label[row], 1, row, 1, 1);
-        gtk_grid_attach (GTK_GRID(grid1), button[row], 2, row, 1, 1);
+		gtk_box_pack_start(GTK_BOX(vbox), hbox[row], FALSE, FALSE, 0);
 		g_signal_connect(button[row], "clicked", G_CALLBACK(on_row), NULL);
 		row ++;
-		}
+	}
 
 //-----------------------------------
+
+	g_signal_connect(window1, "destroy", G_CALLBACK(on_destroy), NULL);
 
 	gtk_widget_show_all(window1);
 
@@ -91,7 +99,7 @@ int main(int argc, char *argv[]) {
 
 
 void	on_row(GtkButton *b) {
-	printf("You selected: %s\n", gtk_button_get_label (b));
+	printf("You selected: %s\n", gtk_label_get_text (GTK_LABEL(label[10])));
 	}
 
 void	on_destroy() { 
