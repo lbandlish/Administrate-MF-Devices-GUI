@@ -42,9 +42,13 @@ char column_names[][COLUMN_CHAR_SIZE] = {
 
 int setup_tree (void);
 int populate_tree_model(void);
-void render_and_sort_view(GtkTreeViewColumn *col1,
-                          GtkTreeViewColumn *col2,
-                          GtkTreeViewColumn *col3);
+void render_and_sort_view	(GtkTreeViewColumn *col1,
+							GtkTreeViewColumn *col2,
+							GtkTreeViewColumn *col3);
+static void on_row_activated	(GtkTreeView       *treeview, 
+                                GtkTreePath       *path, 
+                                GtkTreeViewColumn *column,
+                                gpointer userdata);
 void on_destroy(); 
 void on_row(GtkButton *);
 
@@ -79,8 +83,11 @@ int main(int argc, char *argv[]) {
 	// g_signal_connect(G_OBJECT(window), "destroy",
 	// 				G_CALLBACK(gtk_main_quit), G_OBJECT(window));
 
-	gtk_widget_show_all(window);
+	g_signal_connect (view, "row-activated",
+                  G_CALLBACK (on_row_activated), NULL);
 
+	gtk_widget_show_all(window);
+ 
 	gtk_main();
 
 	return EXIT_SUCCESS;
@@ -106,8 +113,10 @@ int setup_tree (void)
 
 	sortmodel = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(store));
 	view = gtk_tree_view_new_with_model(sortmodel);
+	gtk_tree_view_set_activate_on_single_click(GTK_TREE_VIEW(view), TRUE);
 
 	render_and_sort_view(col1, col2, col3);
+
 	return EXIT_SUCCESS;
 }
 
@@ -221,3 +230,34 @@ void	on_row(GtkButton *b) {
 void	on_destroy() { 
 		gtk_main_quit();
 		}
+
+static void
+on_row_activated (GtkTreeView *view,
+                  GtkTreePath *path,
+                  GtkTreeViewColumn *col,
+                  gpointer userdata)
+{
+    GtkTreeIter iter;
+    GtkTreePath *true_path;
+
+    /* 
+     * We have a path that is filtered first and then sorted. So first, let's
+     * undo the sort.
+     */
+    true_path = gtk_tree_model_sort_convert_path_to_child_path (GTK_TREE_MODEL_SORT(sortmodel),
+                                                                    path);
+
+    if (gtk_tree_model_get_iter (GTK_TREE_MODEL (store), &iter, true_path)) {
+        gchar *col1;
+        gchar *col2;
+		Bool col3;
+
+        gtk_tree_model_get (GTK_TREE_MODEL (store), &iter,
+                            COL1, &col1,
+                            COL2, &col2,
+							COL3, &col3,
+                            -1);
+
+        printf ("%s %s %d\n", col1, col2, col3);
+    }
+}
