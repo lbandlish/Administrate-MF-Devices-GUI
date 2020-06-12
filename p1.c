@@ -223,6 +223,8 @@ void render_and_sort_view(GtkTreeViewColumn *col1,
 	gtk_tree_view_column_set_sort_column_id(col1, COL1);
 	gtk_tree_view_column_set_sort_column_id(col2, COL2);
 	gtk_tree_view_column_set_sort_column_id(col3, COL3);
+	gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sortmodel), COL1, GTK_SORT_ASCENDING);
+
 }
 
 void on_destroy()
