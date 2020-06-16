@@ -12,8 +12,6 @@ gtk-3+ dev toolkit is required to build this program.
 
 The front page of the application is complete. 
 
-![MF Devices](./screenshots/mfdevice.png)
-
-![Other Devices](./screenshots/otherdevice.png)
+![](./screenshots/gui.png)
 
 Implemented using GtkTreeView to provide functionality to sort by any column. 
