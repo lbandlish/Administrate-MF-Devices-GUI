@@ -2,7 +2,7 @@ printer1
 printer2
 printer3
 printer4
-printer5
+server1
 printer6
 printer7
 printer8

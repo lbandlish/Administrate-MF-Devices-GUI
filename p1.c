@@ -184,6 +184,47 @@ int populate_tree_model(void)
 						   -1);
 	}
 
+	GtkTreeIter parent1;
+	GtkTreeIter parent2;
+
+	gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &parent1);
+	gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &parent1);
+	gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &parent1);
+
+	gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &parent2);
+	gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &parent2);
+	gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &parent2);
+	gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &parent2);
+	gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &parent2);
+
+	gtk_tree_store_append(store, &iter1, &parent1);
+	gtk_tree_store_set(store, &iter1,
+					   COL1, "faxout",
+					   -1);
+	gtk_tree_store_append(store, &iter1, &parent1);
+	gtk_tree_store_set(store, &iter1,
+					   COL1, "scan",
+					   -1);
+
+	gtk_tree_store_append(store, &iter1, &parent1);
+	gtk_tree_store_set(store, &iter1,
+					   COL1, "print",
+					   -1);
+
+	gtk_tree_store_append(store, &iter1, &parent2);
+	gtk_tree_store_set(store, &iter1,
+					   COL1, "queue1", COL3, 1 ,
+					   -1);
+	gtk_tree_store_append(store, &iter1, &parent2);
+	gtk_tree_store_set(store, &iter1,
+					   COL1, "queue2",
+					   -1);
+
+	gtk_tree_store_append(store, &iter1, &parent2);
+	gtk_tree_store_set(store, &iter1,
+					   COL1, "queue3", COL3, 1,
+					   -1);
+
 	return EXIT_SUCCESS;
 }
 
@@ -224,7 +265,6 @@ void render_and_sort_view(GtkTreeViewColumn *col1,
 	gtk_tree_view_column_set_sort_column_id(col2, COL2);
 	gtk_tree_view_column_set_sort_column_id(col3, COL3);
 	gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sortmodel), COL1, GTK_SORT_ASCENDING);
-
 }
 
 void on_destroy()
