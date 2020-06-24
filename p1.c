@@ -12,16 +12,18 @@
 
 #define COLUMN_CHAR_SIZE 20
 
-GtkWidget *tree;
 GtkTreeStore *store;
 GtkWidget *window;
 GtkTreeModel *sortmodel;
 GtkWidget *view;
 GtkWidget *scrollWindow;
-GtkWidget *vbox;
+GtkWidget *hbox;
+GtkWidget *lvbox;
+GtkWidget *rvbox;
 GtkWidget *vbox1;
 GtkWidget *vbox2;
 GtkWidget *modBtn;
+GtkWidget *rvLabel;
 
 gchar selected_col1_val[COLUMN_CHAR_SIZE];
 
@@ -64,7 +66,15 @@ int main(int argc, char *argv[])
 	gtk_window_set_title(GTK_WINDOW(window), "IPP Device Management");
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 
-	vbox = gtk_vbox_new(FALSE, 5);
+	hbox = gtk_hbox_new(TRUE, 5);
+	lvbox = gtk_vbox_new(FALSE, 5);
+	rvbox = gtk_vbox_new(FALSE, 5);
+
+	/**
+	 * lvbox setup
+	 * Contains ScrollWindow to select Printer/MF device
+	 */ 
+
 	vbox1 = gtk_vbox_new(FALSE, 5);
 	vbox2 = gtk_vbox_new(FALSE, 5);
 
@@ -85,19 +95,41 @@ int main(int argc, char *argv[])
 	gtk_widget_set_halign(modBtn, GTK_ALIGN_END);
 	gtk_widget_set_valign(modBtn, GTK_ALIGN_END);
 
+	g_signal_connect(view, "row-activated",
+					G_CALLBACK(on_row_activated), NULL);
+
+	g_signal_connect(modBtn, "clicked", G_CALLBACK(modBtn_on_click), NULL);
+
 	gtk_container_add(GTK_CONTAINER(scrollWindow), view);
 	gtk_container_add(GTK_CONTAINER(vbox1), scrollWindow);
 	gtk_container_add(GTK_CONTAINER(vbox2), modBtn);
 
-	gtk_box_pack_start(GTK_BOX(vbox), vbox1, TRUE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), vbox2, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(lvbox), vbox1, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(lvbox), vbox2, FALSE, FALSE, 0);
 
-	gtk_container_add(GTK_CONTAINER(window), vbox);
+	/**
+	 * rvbox setup
+	 * contains printer attributes 
+	 */
 
-	g_signal_connect(view, "row-activated",
-					 G_CALLBACK(on_row_activated), NULL);
+	rvLabel = gtk_label_new("Select a Device from the list");
+	gtk_container_add(GTK_CONTAINER(rvbox), rvLabel);
 
-	g_signal_connect(modBtn, "clicked", G_CALLBACK(modBtn_on_click), NULL);
+	/**
+	 * Add lvbox rvbox to hbox
+	 */
+
+	gtk_box_pack_start(GTK_BOX(hbox), lvbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(hbox), rvbox, TRUE, TRUE, 0);
+
+	gtk_container_add(GTK_CONTAINER(window), hbox);
+
+	/**
+	 * Final setup
+	 */
+
+
+
 
 	g_signal_connect(G_OBJECT(window), "destroy",
 					 G_CALLBACK(on_destroy), NULL);
@@ -106,9 +138,9 @@ int main(int argc, char *argv[])
 	// 				G_CALLBACK(gtk_main_quit), G_OBJECT(window));
 
 	gtk_widget_show_all(window);
+	// gtk_widget_hide(rvbox);
 
 	gtk_main();
-
 	return EXIT_SUCCESS;
 }
 
@@ -274,6 +306,10 @@ on_row_activated(GtkTreeView *view,
 	}
 
 	strcpy(selected_col1_val, col1);
+
+	// gtk_widget_show(rvbox);
+	gtk_label_set_text(GTK_LABEL(rvLabel), selected_col1_val);
+
 }
 
 static void modBtn_on_click(GtkButton *button,
