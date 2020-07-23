@@ -12,4 +12,4 @@ gtk-3+ dev toolkit is required to build this program.
 
 The front page of the application is complete. 
 
-Implemented using GtkTreeView to provide functionality to sort by any column. 
+Implemented using GtkTreeView to provide functionality to sort by any column. sudo apt-get install avahi-deamon avahi-utils
