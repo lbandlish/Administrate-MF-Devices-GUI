@@ -1,6 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <cups/cups.h>
+#include <assert.h>
+#include <time.h>
+#include <avahi-client/client.h>
+#include <avahi-client/lookup.h>
+#include <avahi-common/simple-watch.h>
+#include <avahi-common/malloc.h>
+#include <avahi-common/error.h>
 
 typedef struct
 {
@@ -186,34 +194,40 @@ void if_get_system_attributes(ipp_t *response)
   }
 }
 
-void check_if_error()
+static int check_if_cups_request_error()
 {
 
   if (cupsLastError() >= IPP_STATUS_ERROR_BAD_REQUEST)
   {
     /* request failed */
     printf("Request failed: %s\n", cupsLastErrorString());
+    return 1;
   }
 
   else
   {
     printf("Request succeeded!\n");
+    return 0;
   }
 }
 
-int main()
+static int setup_and_send_request(const char *name,
+                                  const char *type,
+                                  const char *domain,
+                                  const char *host_name,
+                                  uint16_t port)
 {
-
-  // cups_dests_discovery();
-
   char uri[1024];
-
   httpAssembleURI(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL,
-                  "127.0.0.1", 8000, "/ipp/system");
+                  host_name, port, "/ipp/system");
+
+  
+  char portString[10];
+  sprintf(portString, "%d", port);
 
   /* need to figure out why (or if) addrlist is needed. */
-  http_addrlist_t *addrlist = httpAddrGetList("127.0.0.1", AF_UNSPEC, "8000");
-  http_t *http = httpConnect2("127.0.0.1", 8000, addrlist, AF_UNSPEC, HTTP_ENCRYPTION_ALWAYS, 1, 0, NULL);
+  http_addrlist_t *addrlist = httpAddrGetList(host_name, AF_UNSPEC, portString);
+  http_t *http = httpConnect2(host_name, port, addrlist, AF_UNSPEC, HTTP_ENCRYPTION_ALWAYS, 1, 0, NULL);
 
   printf("uri: %s\n", uri);
 
@@ -225,11 +239,78 @@ int main()
 
   ipp_t *response = cupsDoRequest(http, request, "/ipp/system");
 
-  check_if_error();
+  if (check_if_cups_request_error())
+  {
+    return 1;
+  }
 
   // if_get_printer_attributes(response);
   if_get_system_attributes(response);
   if_get_printers(response);
 
+  return 0;
+}
+
+int dnssd(const char *service_type);
+
+void resolve_callback(
+    AvahiServiceResolver *r,
+    AVAHI_GCC_UNUSED AvahiIfIndex interface,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AvahiResolverEvent event,
+    const char *name,
+    const char *type,
+    const char *domain,
+    const char *host_name,
+    const AvahiAddress *address,
+    uint16_t port,
+    AvahiStringList *txt,
+    AvahiLookupResultFlags flags,
+    AVAHI_GCC_UNUSED void *userdata)
+{
+  assert(r);
+  /* Called whenever a service has been resolved successfully or timed out */
+  switch (event)
+  {
+  case AVAHI_RESOLVER_FAILURE:
+    fprintf(stderr, "(Resolver) Failed to resolve service '%s' of type '%s' in domain '%s': %s\n", name, type, domain, avahi_strerror(avahi_client_errno(avahi_service_resolver_get_client(r))));
+    break;
+  case AVAHI_RESOLVER_FOUND:
+  {
+    char a[AVAHI_ADDRESS_STR_MAX], *t;
+    fprintf(stderr, "Service '%s' of type '%s' in domain '%s':\n", name, type, domain);
+    avahi_address_snprint(a, sizeof(a), address);
+    t = avahi_string_list_to_string(txt);
+    fprintf(stderr,
+            "\t%s:%u (%s)\n"
+            "\tTXT=%s\n"
+            "\tcookie is %u\n"
+            "\tis_local: %i\n"
+            "\tour_own: %i\n"
+            "\twide_area: %i\n"
+            "\tmulticast: %i\n"
+            "\tcached: %i\n",
+            host_name, port, a,
+            t,
+            avahi_string_list_get_service_cookie(txt),
+            !!(flags & AVAHI_LOOKUP_RESULT_LOCAL),
+            !!(flags & AVAHI_LOOKUP_RESULT_OUR_OWN),
+            !!(flags & AVAHI_LOOKUP_RESULT_WIDE_AREA),
+            !!(flags & AVAHI_LOOKUP_RESULT_MULTICAST),
+            !!(flags & AVAHI_LOOKUP_RESULT_CACHED));
+    avahi_free(t);
+  }
+  }
+  avahi_service_resolver_free(r);
+
+  int status = setup_and_send_request(name, type, domain, host_name, port);
+}
+
+int main()
+{
+
+  // cups_dests_discovery();
+  // dnssd("_http._tcp");
+  dnssd("_ipps-system._tcp");
   return 0;
 }
