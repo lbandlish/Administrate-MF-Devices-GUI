@@ -274,7 +274,7 @@ on_row_activated(GtkTreeView *view,
 	GtkTreePath *true_path;
 
 	/* 
-     * We have a path that is filtered first and then sorted. So first, let's
+     * We have a path that is sorted. So first, let's
      * undo the sort.
      */
 	true_path = gtk_tree_model_sort_convert_path_to_child_path(GTK_TREE_MODEL_SORT(sortmodel),

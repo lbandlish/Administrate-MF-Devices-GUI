@@ -1,42 +1,25 @@
-/***
-  This file is part of avahi.
-
-  avahi is free software; you can redistribute it and/or modify it
-  under the terms of the GNU Lesser General Public License as
-  published by the Free Software Foundation; either version 2.1 of the
-  License, or (at your option) any later version.
-
-  avahi is distributed in the hope that it will be useful, but WITHOUT
-  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-  or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
-  Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with avahi; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
-  USA.
-***/
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include <sys/ioctl.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <stdlib.h>
 #include <net/if.h>
 #include <unistd.h>
+#include <signal.h>
+#include <math.h>
+#include <time.h>
+#include <ctype.h>
+
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/mman.h>
 
 #include <gtk/gtk.h>
+#include <gtk/gtkx.h>
 
 #include <avahi-core/core.h>
 #include <avahi-core/lookup.h>
-
 #include <avahi-common/strlst.h>
 #include <avahi-common/domain.h>
 #include <avahi-common/error.h>
-
 #include <avahi-glib/glib-watch.h>
 #include <avahi-glib/glib-malloc.h>
 
@@ -65,13 +48,19 @@ struct ServiceType
 
 static GtkWidget *main_window = NULL;
 static GtkTreeView *tree_view = NULL;
+static GtkTreeModel *sortmodel;
 static GtkTreeStore *tree_store = NULL;
-static GtkLabel *info_label = NULL;
+static GtkWidget *info_label = NULL;
 static AvahiServer *server = NULL;
 static AvahiSServiceTypeBrowser *service_type_browser = NULL;
 static GHashTable *service_type_hash_table = NULL;
 static AvahiSServiceResolver *service_resolver = NULL;
 static struct Service *current_service = NULL;
+static GtkWidget *hbox;
+static GtkWidget *lvbox;
+static GtkWidget *rvbox;
+static GtkWidget *scrollWindow1;
+static GtkWidget *scrollWindow2;
 
 static struct Service *get_service(const gchar *service_type, const gchar *service_name, const gchar *domain_name, AvahiIfIndex interface, AvahiProtocol protocol)
 {
@@ -110,7 +99,7 @@ static void free_service(struct Service *s)
             service_resolver = NULL;
         }
 
-        gtk_label_set_text(info_label, "<i>Service removed</i>");
+        gtk_label_set_text(GTK_LABEL(info_label), "<i>Service removed</i>");
     }
 
     s->service_type->services = g_list_remove(s->service_type->services, s);
@@ -161,6 +150,7 @@ static void service_browser_callback(
         s->service_type->services = g_list_prepend(s->service_type->services, s);
 
         ppath = gtk_tree_row_reference_get_path(s->service_type->tree_ref);
+        //    ppath);
         gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &piter, ppath);
 
         snprintf(iface, sizeof(iface), "%s %s", if_indextoname(interface, name), avahi_proto_to_string(protocol));
@@ -172,6 +162,7 @@ static void service_browser_callback(
         s->tree_ref = gtk_tree_row_reference_new(GTK_TREE_MODEL(tree_store), path);
         gtk_tree_path_free(path);
 
+        /* Expand tree structure on program startup */
         gtk_tree_view_expand_row(tree_view, ppath, FALSE);
         gtk_tree_path_free(ppath);
     }
@@ -257,7 +248,8 @@ static void update_label(struct Service *s, const gchar *hostname, const AvahiAd
              address,
              txt_s);
 
-    gtk_label_set_markup(info_label, t);
+    gtk_label_set_markup(GTK_LABEL(info_label), t);
+    // printf("Attempted info_label write \n");
 
     g_free(txt_s);
 }
@@ -265,18 +257,22 @@ static void update_label(struct Service *s, const gchar *hostname, const AvahiAd
 static struct Service *get_service_on_cursor(void)
 {
     GtkTreePath *path;
+    GtkTreePath *true_path;
     struct Service *s;
     GtkTreeIter iter;
 
     gtk_tree_view_get_cursor(tree_view, &path, NULL);
 
-    if (!path)
+    true_path = gtk_tree_model_sort_convert_path_to_child_path(GTK_TREE_MODEL_SORT(sortmodel),
+                                                               path);
+
+    if (!true_path)
         return NULL;
 
-    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
+    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, true_path);
     gtk_tree_model_get(GTK_TREE_MODEL(tree_store), &iter, 2, &s, -1);
     gtk_tree_path_free(path);
-
+    gtk_tree_path_free(true_path);
     return s;
 }
 
@@ -311,7 +307,7 @@ static void service_resolver_callback(
     {
         char t[256];
         snprintf(t, sizeof(t), "<i>Failed to resolve: %s.</i>", avahi_strerror(avahi_server_errno(server)));
-        gtk_label_set_markup(info_label, t);
+        gtk_label_set_markup(GTK_LABEL(info_label), t);
     }
     else if (event == AVAHI_RESOLVER_FOUND)
         update_label(s, host_name, a, port, txt);
@@ -340,11 +336,13 @@ static gboolean main_window_on_delete_event(AVAHI_GCC_UNUSED GtkWidget *widget, 
 
 int main(int argc, char *argv[])
 {
-    GtkBuilder *ui;
     AvahiServerConfig config;
-    GtkTreeViewColumn *c;
+    GtkTreeViewColumn *col1;
+    GtkTreeViewColumn *col2;
     gint error;
     AvahiGLibPoll *poll_api;
+    gint window_width = 700;
+    gint window_height = 400;
 
     gtk_init(&argc, &argv);
 
@@ -352,27 +350,72 @@ int main(int argc, char *argv[])
 
     poll_api = avahi_glib_poll_new(NULL, G_PRIORITY_DEFAULT);
 
-    ui = gtk_builder_new();
-    gtk_builder_set_translation_domain(ui, "avahi");
-    gtk_builder_add_from_file(ui, "avahi-discover.ui", NULL);
-    main_window = GTK_WIDGET(gtk_builder_get_object(ui, "main_window"));
+    main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_position(GTK_WINDOW(main_window), GTK_WIN_POS_CENTER);
+    gtk_window_set_default_size(GTK_WINDOW(main_window), window_width, window_height);
+    gtk_window_set_title(GTK_WINDOW(main_window), "IPP Device Management");
+    gtk_container_set_border_width(GTK_CONTAINER(main_window), 10);
     g_signal_connect(main_window, "delete-event", (GCallback)main_window_on_delete_event, NULL);
 
-    tree_view = GTK_TREE_VIEW(gtk_builder_get_object(ui, "tree_view"));
+    hbox = gtk_hbox_new(TRUE, 5);
+    lvbox = gtk_vbox_new(FALSE, 5);
+    rvbox = gtk_vbox_new(FALSE, 5);
+
+    scrollWindow1 = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrollWindow1),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrollWindow1),
+                                        GTK_SHADOW_IN);
+
+    scrollWindow2 = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrollWindow1),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrollWindow1),
+                                        GTK_SHADOW_IN);
+
+    info_label = gtk_label_new("Select a Device from the list");
+
+    gtk_container_add(GTK_CONTAINER(main_window), hbox);
+    gtk_box_pack_start(GTK_BOX(hbox), lvbox, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(hbox), rvbox, TRUE, TRUE, 0);
+
+    tree_view = GTK_TREE_VIEW(gtk_tree_view_new());
     g_signal_connect(GTK_WIDGET(tree_view), "cursor-changed", (GCallback)tree_view_on_cursor_changed, NULL);
 
-    info_label = GTK_LABEL(gtk_builder_get_object(ui, "info_label"));
+    gtk_container_add(GTK_CONTAINER(lvbox), scrollWindow1);
+    gtk_container_add(GTK_CONTAINER(scrollWindow1), GTK_WIDGET(tree_view));
+    gtk_container_add(GTK_CONTAINER(rvbox), scrollWindow2);
+    gtk_container_add(GTK_CONTAINER(scrollWindow2), info_label);
 
     tree_store = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
-    gtk_tree_view_set_model(tree_view, GTK_TREE_MODEL(tree_store));
+    sortmodel = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(tree_store));
+
+    gtk_tree_view_set_model(tree_view, GTK_TREE_MODEL(sortmodel));
     gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Name", gtk_cell_renderer_text_new(), "text", 0, NULL);
     gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Interface", gtk_cell_renderer_text_new(), "text", 1, NULL);
+    gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 0), 0);
+    gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 1), 1);
+    gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sortmodel), 0, GTK_SORT_ASCENDING);
 
-    gtk_tree_view_column_set_resizable(c = gtk_tree_view_get_column(tree_view, 0), TRUE);
-    gtk_tree_view_column_set_sizing(c, GTK_TREE_VIEW_COLUMN_GROW_ONLY);
-    gtk_tree_view_column_set_expand(c, TRUE);
+    /* Need to see if next formattings are needed or not */
+
+    gtk_tree_view_column_set_resizable(col1 = gtk_tree_view_get_column(tree_view, 0), TRUE);
+    gtk_tree_view_column_set_resizable(col2 = gtk_tree_view_get_column(tree_view, 1), TRUE);
+
+    gtk_tree_view_column_set_sizing(col1, GTK_TREE_VIEW_COLUMN_FIXED);
+    gtk_tree_view_column_set_fixed_width(col1, window_width / 4);
+
+    gtk_tree_view_column_set_sizing(col1, GTK_TREE_VIEW_COLUMN_FIXED);
+    gtk_tree_view_column_set_fixed_width(col1, window_width / 4);
+
+    gtk_tree_view_column_set_expand(col1, TRUE);
+    gtk_tree_view_column_set_expand(col2, TRUE);
+
+    /* Need to modify hash table structure */
 
     service_type_hash_table = g_hash_table_new((GHashFunc)avahi_domain_hash, (GEqualFunc)avahi_domain_equal);
+
+    /* Need to figure out use of config or get rid of it */
 
     avahi_server_config_init(&config);
     config.publish_hinfo = config.publish_addresses = config.publish_domain = config.publish_workstation = FALSE;
@@ -382,6 +425,8 @@ int main(int argc, char *argv[])
     g_assert(server);
 
     service_type_browser = avahi_s_service_type_browser_new(server, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, argc >= 2 ? argv[1] : NULL, 0, service_type_browser_callback, NULL);
+
+    gtk_widget_show_all(main_window);
 
     gtk_main();
 

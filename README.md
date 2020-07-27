@@ -8,8 +8,11 @@ Also need avahi-client, avahi-glib, and avahi-core libraries for DNS-SD and glib
 
 #### Ubuntu
 `sudo apt-get install libgtk-3-dev`
+
 `sudo apt-get install libavahi-client-dev`
+
 `sudo apt-get install libavahi-glib-dev`
+
 `sudo apt-get install libavahi-core-dev`
 
 ## Current Progress
