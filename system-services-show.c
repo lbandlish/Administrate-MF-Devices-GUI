@@ -49,10 +49,17 @@ gchar systemServiceType[] = "_ipps-system._tcp";
 
 struct ObjectSources2
 {
+    /* Most suited to use with httpConnect2
+     * One httpConnect2 request per ObjectSources2 object 
+     * (until connection/request is successful)
+     */
+
     gchar *domain_name;
-    AvahiIfIndex interface;
-    AvahiAddress addr;
-    gchar *txtUUID;
+    // AvahiIfIndex interface;
+    gchar *host;
+    int port;
+    int family;
+    // AvahiAddress *addr;
 };
 
 struct SystemObject2
@@ -66,6 +73,9 @@ struct SystemObject2
     GList *sources; // elements will be of type ObjectSources
 
     GtkTreeRowReference *tree_ref;
+
+    /* txtuuid may be useful*/
+    // gchar *txtuuid
 };
 
 static GtkWidget *main_window = NULL;
@@ -197,6 +207,97 @@ static GtkWidget *scrollWindow2;
 //             free_service(s);
 //     }
 // }
+struct ObjectSources2 *is_system_object_present2(
+    GList *sources,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AVAHI_GCC_UNUSED const char *domain_name,
+    const char *host_name,
+    uint16_t port)
+{
+
+    // printf("%d %s\n\n", addr->data, addr->data);
+
+    printf("\tis_system_object_present2: ");
+
+    for (GList *l = sources; l; l = l->next)
+    {
+        struct ObjectSources2 *s = l->data;
+
+        if (s->family == protocol &&
+            s->port == port &&
+            /* possible bug in next line (inputs are not domains) */
+            avahi_domain_equal(s->host, host_name) &&
+            avahi_domain_equal(s->domain_name, domain_name))
+        {
+            printf("Yes\n");
+            return s;
+        }
+    }
+
+    printf("No\n");
+    return NULL;
+}
+
+static void remove_from_system_object2(
+    struct SystemObject2 *so,
+    AVAHI_GCC_UNUSED AvahiIfIndex interface,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AVAHI_GCC_UNUSED const char *domain_name,
+    const char *host_name,
+    const AvahiAddress *addr,
+    uint16_t port)
+{
+    struct ObjectSources2 *source = NULL;
+
+    if (source = is_system_object_present2(so->sources, protocol, domain_name, host_name, port))
+    {
+        so->sources = g_list_remove(so->sources, source);
+    }
+}
+
+static void add_to_system_object2(
+    struct SystemObject2 *so,
+    AVAHI_GCC_UNUSED AvahiIfIndex interface,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AVAHI_GCC_UNUSED const char *domain_name,
+    const char *host_name,
+    const AvahiAddress *addr,
+    uint16_t port)
+{
+    struct ObjectSources2 *source = NULL;
+
+    if (source = is_system_object_present2(so->sources, protocol, domain_name, host_name, port))
+    {
+
+        /* Object already added */
+        return;
+    }
+
+    else
+    {
+        //   char portString[10];
+        //   sprintf(portString, "%d", port);
+        // http_addrlist_t* addrlist = httpAddrGetList(host_name, protocol, portString);
+        // int count = 0;
+        // for (http_addrlist_t * listItem = addrlist; listItem = listItem->next; listItem != NULL) {
+        //     count++;
+        // }
+
+        // printf ("Count is %d\n\n\n", count);
+
+        source = g_new(struct ObjectSources2, 1);
+        source->domain_name = g_strdup(domain_name);
+        source->host = g_strdup(host_name);
+        source->port = port;
+        source->family = protocol;
+        // /* DO SOMETHING TO COPY ADDR INTO SOURCE->ADDR */
+
+        // // copyAddr(source->addr, addr);
+        // source->addr = g_new(struct AvahiAddress, 1);
+
+        so->sources = g_list_prepend(so->sources, source);
+    }
+}
 
 static void service_resolver_callback2(
     AvahiSServiceResolver *r,
@@ -214,12 +315,13 @@ static void service_resolver_callback2(
     void *userdata)
 {
 
+    /* Can add code to quit when encountering AVAHI_BROWSER_FAILURE event */
+
     /* Need to create separate hash map for printers.
      * (all of these maps can be stored in some sort of list)
      * service_type is passed and this can be some sort of key
      * in this list and entry corresponding to this key will be map.
      */
-
 
     if ((service_name) && (event == AVAHI_BROWSER_NEW))
     {
@@ -228,7 +330,7 @@ static void service_resolver_callback2(
         GtkTreePath *path = NULL;
         GtkTreeIter iter;
 
-        printf("(NEW) Looking in ht for: %s\n", service_name);
+        printf("\t(NEW) Looking in ht for: %s\n", service_name);
 
         if (!(so = g_hash_table_lookup(system_map_hash_table2, service_name)))
         {
@@ -239,7 +341,7 @@ static void service_resolver_callback2(
             so->tree_ref = NULL;
 
             gtk_tree_store_append(tree_store, &iter, NULL);
-            gtk_tree_store_set(tree_store, &iter, 0, so->object_name, 1, "", 2, NULL, -1);
+            gtk_tree_store_set(tree_store, &iter, 0, so->object_name, 1, avahi_proto_to_string(protocol), 2, so, -1);
             path = gtk_tree_model_get_path(GTK_TREE_MODEL(tree_store), &iter);
             so->tree_ref = gtk_tree_row_reference_new(GTK_TREE_MODEL(tree_store), path);
             gtk_tree_path_free(path);
@@ -248,50 +350,52 @@ static void service_resolver_callback2(
 
             g_hash_table_insert(system_map_hash_table2, so->object_name, so);
 
-                if (g_hash_table_lookup(system_map_hash_table2, service_name)) {
-                    printf("Inserted in ht.\n");
-                }
+            if (g_hash_table_lookup(system_map_hash_table2, service_name))
+            {
+                printf("Inserted in ht.\n");
+            }
             /* Add code to check and display printers and other components of system */
         }
 
-        // add_to_system_object2(so, interface, protocol, domain_name, host_name, a, port);
+        add_to_system_object2(so, interface, protocol, domain_name, host_name, a, port);
     }
 
     else if ((service_name) && (event == AVAHI_BROWSER_REMOVE))
     {
         struct SystemObject2 *so;
-        printf("(REMOVE) Looking in ht for: %s\n", service_name);
+        printf("\t(REMOVE) Looking in ht for: %s\n", service_name);
 
-        if (so = g_hash_table_lookup(system_map_hash_table2, service_name)) {
-            
-            // remove_from_system_object2(so, interface, protocol, domain_name, host_name, a, port);
+        if (so = g_hash_table_lookup(system_map_hash_table2, service_name))
+        {
+
+            remove_from_system_object2(so, interface, protocol, domain_name, host_name, a, port);
 
             /* Check if system_object is empty */
-            if (so->sources == NULL) {
-                
+            if (so->sources == NULL)
+            {
+
                 /* Add code to remove printers and other components of system */
 
-                    GtkTreeIter iter;
-                    GtkTreePath *path;
-                    
-                    if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
-                    {
-                        gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
-                        gtk_tree_path_free(path);
+                GtkTreeIter iter;
+                GtkTreePath *path;
 
-                        /* See avahi-discover-dnssd.c code, there this function is used outside this if block */
-                        gtk_tree_store_remove(tree_store, &iter);
-                    }
+                if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
+                {
+                    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
+                    gtk_tree_path_free(path);
 
-                    gtk_tree_row_reference_free(so->tree_ref);
-                    g_free(so->object_name);
-                    g_free(so);
+                    /* See avahi-discover-dnssd.c code, there this function is used outside this if block */
+                    gtk_tree_store_remove(tree_store, &iter);
+                }
+
+                gtk_tree_row_reference_free(so->tree_ref);
+                g_free(so->object_name);
+                g_free(so);
             }
         }
     }
 
     avahi_s_service_resolver_free(r);
-
 }
 
 static void service_browser_callback2(
@@ -305,10 +409,9 @@ static void service_browser_callback2(
     AvahiLookupResultFlags flags, /**< Lookup flags */
     void *userdata)
 {
-    printf("1. service browser\n");
+    printf("\n1. service browser\n");
     avahi_s_service_resolver_new(server, interface, protocol, service_name, service_type, domain_name, AVAHI_PROTO_UNSPEC, 0, service_resolver_callback2, b);
 }
-
 
 // static void service_type_browser_callback(
 //     AVAHI_GCC_UNUSED AvahiSServiceTypeBrowser *b,
@@ -348,68 +451,43 @@ static void service_browser_callback2(
 // }
 
 // static void update_label(struct Service *s, const gchar *hostname, const AvahiAddress *a, guint16 port, AvahiStringList *txt)
-// {
-//     gchar t[512], address[64], *txt_s;
-//     char name[IF_NAMESIZE];
+static void update_label2(struct SystemObject2 *so)
+{
 
-//     if (a && hostname)
-//     {
-//         char na[AVAHI_ADDRESS_STR_MAX];
-//         avahi_address_snprint(na, sizeof(na), a);
-//         snprintf(address, sizeof(address), "%s/%s:%u", hostname, na, port);
 
-//         if (txt)
-//             txt_s = avahi_string_list_to_string(txt);
-//         else
-//             txt_s = g_strdup("<i>empty</i>");
-//     }
-//     else
-//     {
-//         snprintf(address, sizeof(address), "<i>n/a</i>");
-//         txt_s = g_strdup("<i>n/a</i>");
-//     }
+    if (so == NULL)
+    {
+        printf("Update Label insuccessful - System object empty (NULL)\n");
+        return;
+    }
+    gchar t[512];
 
-//     snprintf(t, sizeof(t),
-//              "<b>Service Type:</b> %s\n"
-//              "<b>Service Name:</b> %s\n"
-//              "<b>Domain Name:</b> %s\n"
-//              "<b>Interface:</b> %s %s\n"
-//              "<b>Address:</b> %s\n"
-//              "<b>TXT Data:</b> %s",
-//              s->service_type->service_type,
-//              s->service_name,
-//              s->domain_name,
-//              if_indextoname(s->interface, name), avahi_proto_to_string(s->protocol),
-//              address,
-//              txt_s);
+    if (so->object_name != NULL)
+    {
+        snprintf(t, sizeof(t),
+                 "<b>System Object Name:</b> %s\n",
+                 so->object_name);
+    }
 
-//     gtk_label_set_markup(GTK_LABEL(info_label), t);
-//     // printf("Attempted info_label write \n");
+    snprintf(t + strlen(t), sizeof(t) - strlen(t), "<b>Sources: </b>\n");
 
-//     g_free(txt_s);
-// }
+    for (GList *l = so->sources; l; l = l->next)
+    {
+        struct ObjectSources2 *s = l->data;
+        snprintf(t + strlen(t), sizeof(t) - strlen(t),
+                 "<b>\t Domain name:</b> %s\n"
+                 "<b>\t Host:</b> %s\n"
+                 "<b>\t Port:</b> %d\n"
+                 "<b>\t Family(Protocol):</b> %s\n\n",
+                 s->domain_name,
+                 s->host,
+                 s->port,
+                 avahi_proto_to_string(s->family));
+    }
 
-// static struct Service *get_service_on_cursor(void)
-// {
-//     GtkTreePath *path;
-//     GtkTreePath *true_path;
-//     struct Service *s;
-//     GtkTreeIter iter;
-
-//     gtk_tree_view_get_cursor(tree_view, &path, NULL);
-
-//     true_path = gtk_tree_model_sort_convert_path_to_child_path(GTK_TREE_MODEL_SORT(sortmodel),
-//                                                                path);
-
-//     if (!true_path)
-//         return NULL;
-
-//     gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, true_path);
-//     gtk_tree_model_get(GTK_TREE_MODEL(tree_store), &iter, 2, &s, -1);
-//     gtk_tree_path_free(path);
-//     gtk_tree_path_free(true_path);
-//     return s;
-// }
+    printf("Label Content: \n%s\n", t);
+    gtk_label_set_markup(GTK_LABEL(info_label), t);
+}
 
 // static void service_resolver_callback(
 //     AvahiSServiceResolver *r,
@@ -448,20 +526,39 @@ static void service_browser_callback2(
 //         update_label(s, host_name, a, port, txt);
 // }
 
-// static void tree_view_on_cursor_changed(AVAHI_GCC_UNUSED GtkTreeView *tv, AVAHI_GCC_UNUSED gpointer userdata)
-// {
-//     struct Service *s;
+static struct SystemObject2 *get_system_object_on_cursor2(void)
+{
+    GtkTreePath *path;
+    GtkTreePath *true_path;
+    struct SystemObject2 *so;
+    GtkTreeIter iter;
 
-//     if (!(s = get_service_on_cursor()))
-//         return;
+    gtk_tree_view_get_cursor(tree_view, &path, NULL);
 
-//     if (service_resolver)
-//         avahi_s_service_resolver_free(service_resolver);
+    true_path = gtk_tree_model_sort_convert_path_to_child_path(GTK_TREE_MODEL_SORT(sortmodel),
+                                                               path);
 
-//     update_label(s, NULL, NULL, 0, NULL);
+    if (!true_path)
+        return NULL;
 
-//     service_resolver = avahi_s_service_resolver_new(server, s->interface, s->protocol, s->service_name, s->service_type->service_type, s->domain_name, AVAHI_PROTO_UNSPEC, 0, service_resolver_callback, s);
-// }
+    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, true_path);
+    gtk_tree_model_get(GTK_TREE_MODEL(tree_store), &iter, 2, &so, -1);
+    gtk_tree_path_free(path);
+    gtk_tree_path_free(true_path);
+    return so;
+}
+
+static void tree_view_on_cursor_changed2(AVAHI_GCC_UNUSED GtkTreeView *tv, AVAHI_GCC_UNUSED gpointer userdata)
+{
+    struct SystemObject2 *so;
+
+    if (!(so = get_system_object_on_cursor2()))
+        return;
+
+    printf("so contents: %s\n", so->object_name);
+
+    update_label2(so);
+}
 
 static gboolean main_window_on_delete_event(AVAHI_GCC_UNUSED GtkWidget *widget, AVAHI_GCC_UNUSED GdkEvent *event, AVAHI_GCC_UNUSED gpointer user_data)
 {
@@ -515,7 +612,7 @@ int main(int argc, char *argv[])
     gtk_box_pack_start(GTK_BOX(hbox), rvbox, TRUE, TRUE, 0);
 
     tree_view = GTK_TREE_VIEW(gtk_tree_view_new());
-    // g_signal_connect(GTK_WIDGET(tree_view), "cursor-changed", (GCallback)tree_view_on_cursor_changed, NULL);
+    g_signal_connect(GTK_WIDGET(tree_view), "cursor-changed", (GCallback)tree_view_on_cursor_changed2, NULL);
 
     gtk_container_add(GTK_CONTAINER(lvbox), scrollWindow1);
     gtk_container_add(GTK_CONTAINER(scrollWindow1), GTK_WIDGET(tree_view));
@@ -527,7 +624,7 @@ int main(int argc, char *argv[])
 
     gtk_tree_view_set_model(tree_view, GTK_TREE_MODEL(sortmodel));
     gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Name", gtk_cell_renderer_text_new(), "text", 0, NULL);
-    gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Interface", gtk_cell_renderer_text_new(), "text", 1, NULL);
+    gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Protocol", gtk_cell_renderer_text_new(), "text", 1, NULL);
     gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 0), 0);
     gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 1), 1);
     gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sortmodel), 0, GTK_SORT_ASCENDING);
