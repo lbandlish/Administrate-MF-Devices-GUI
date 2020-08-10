@@ -299,7 +299,7 @@ static void add_to_system_object2(
     }
 }
 
-static void service_resolver_callback2(
+static void service_remove_resolver_callback2(
     AvahiSServiceResolver *r,
     AVAHI_GCC_UNUSED AvahiIfIndex interface,
     AVAHI_GCC_UNUSED AvahiProtocol protocol,
@@ -323,7 +323,93 @@ static void service_resolver_callback2(
      * in this list and entry corresponding to this key will be map.
      */
 
-    if ((service_name) && (event == AVAHI_BROWSER_NEW))
+    if (!service_name) {
+        printf("Error: empty service_name passed to resolver\n");
+    }
+
+    else if (event == AVAHI_RESOLVER_FOUND)
+    {
+        struct SystemObject2 *so;
+        printf("\t(REMOVE) Looking in ht for: %s\n", service_name);
+
+        if (so = g_hash_table_lookup(system_map_hash_table2, service_name))
+        {
+
+            remove_from_system_object2(so, interface, protocol, domain_name, host_name, a, port);
+
+            /* Check if system_object is empty */
+            if (so->sources == NULL)
+            {
+
+                /* Add code to remove printers and other components of system */
+                printf("Check 1\n");
+                GtkTreeIter iter;
+                GtkTreePath *path;
+
+                if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
+                {
+                printf("Check 2\n");
+                    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
+                printf("Check 3\n");
+                    gtk_tree_path_free(path);
+                printf("Check 4\n");
+
+                    /* See avahi-discover-dnssd.c code, there this function is used outside this if block */
+                    gtk_tree_store_remove(tree_store, &iter);
+                printf("Check 4\n");
+
+                }
+
+                gtk_tree_row_reference_free(so->tree_ref);
+                printf("Check 5\n");
+                g_free(so->object_name);
+                printf("Check 6\n");
+                g_free(so);
+                printf("Check 7\n");
+
+            }
+        }
+    }
+
+    else if (event == AVAHI_RESOLVER_FAILURE)
+    {
+        printf("Error: Failed to resolve: %s\n", avahi_strerror(avahi_server_errno(server)));
+    }
+
+    avahi_s_service_resolver_free(r);
+}
+
+static void service_new_resolver_callback2(
+    AvahiSServiceResolver *r,
+    AVAHI_GCC_UNUSED AvahiIfIndex interface,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AvahiResolverEvent event,
+    AVAHI_GCC_UNUSED const char *service_name,
+    AVAHI_GCC_UNUSED const char *service_type,
+    AVAHI_GCC_UNUSED const char *domain_name,
+    const char *host_name,
+    const AvahiAddress *a,
+    uint16_t port,
+    AvahiStringList *txt,
+    AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
+    void *userdata)
+{
+
+    /* Can add code to quit when encountering AVAHI_BROWSER_FAILURE event */
+
+    /* Need to create separate hash map for printers.
+     * (all of these maps can be stored in some sort of list)
+     * service_type is passed and this can be some sort of key
+     * in this list and entry corresponding to this key will be map.
+     */
+
+
+    if (!service_name) {
+        printf("Error: empty service_name passed to resolver\n");
+    }
+
+
+    else if (event == AVAHI_RESOLVER_FOUND)
     {
         printf("2. Resolver\n");
         struct SystemObject2 *so;
@@ -360,39 +446,9 @@ static void service_resolver_callback2(
         add_to_system_object2(so, interface, protocol, domain_name, host_name, a, port);
     }
 
-    else if ((service_name) && (event == AVAHI_BROWSER_REMOVE))
+    else if (event == AVAHI_RESOLVER_FAILURE)
     {
-        struct SystemObject2 *so;
-        printf("\t(REMOVE) Looking in ht for: %s\n", service_name);
-
-        if (so = g_hash_table_lookup(system_map_hash_table2, service_name))
-        {
-
-            remove_from_system_object2(so, interface, protocol, domain_name, host_name, a, port);
-
-            /* Check if system_object is empty */
-            if (so->sources == NULL)
-            {
-
-                /* Add code to remove printers and other components of system */
-
-                GtkTreeIter iter;
-                GtkTreePath *path;
-
-                if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
-                {
-                    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
-                    gtk_tree_path_free(path);
-
-                    /* See avahi-discover-dnssd.c code, there this function is used outside this if block */
-                    gtk_tree_store_remove(tree_store, &iter);
-                }
-
-                gtk_tree_row_reference_free(so->tree_ref);
-                g_free(so->object_name);
-                g_free(so);
-            }
-        }
+        printf("Error: Failed to resolve: %s\n", avahi_strerror(avahi_server_errno(server)));
     }
 
     avahi_s_service_resolver_free(r);
@@ -409,8 +465,23 @@ static void service_browser_callback2(
     AvahiLookupResultFlags flags, /**< Lookup flags */
     void *userdata)
 {
+
     printf("\n1. service browser\n");
-    avahi_s_service_resolver_new(server, interface, protocol, service_name, service_type, domain_name, AVAHI_PROTO_UNSPEC, 0, service_resolver_callback2, b);
+
+    if (event == AVAHI_BROWSER_NEW) {
+        printf ("Browser: AVAHI_BROWSER_NEW\n");
+        avahi_s_service_resolver_new(server, interface, protocol, service_name, service_type, domain_name, AVAHI_PROTO_UNSPEC, 0, service_new_resolver_callback2, b);
+    }
+
+    else if (event == AVAHI_BROWSER_REMOVE) {
+        printf ("Browser: AVAHI_BROWSER_REMOVE\n");
+        avahi_s_service_resolver_new(server, interface, protocol, service_name, service_type, domain_name, AVAHI_PROTO_UNSPEC, 0, service_remove_resolver_callback2, b);
+    }
+
+    else {
+        printf ("Browser: Non NEW/REMOVE event.\n");
+    }
+
 }
 
 // static void service_type_browser_callback(
