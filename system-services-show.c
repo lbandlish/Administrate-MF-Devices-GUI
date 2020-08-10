@@ -23,29 +23,7 @@
 #include <avahi-glib/glib-watch.h>
 #include <avahi-glib/glib-malloc.h>
 
-// struct ServiceType;
 gchar systemServiceType[] = "_ipps-system._tcp";
-
-// struct Service
-// {
-//     struct ServiceType *service_type;
-//     gchar *service_name;
-//     gchar *domain_name;
-
-//     AvahiIfIndex interface;
-//     AvahiProtocol protocol;
-
-//     GtkTreeRowReference *tree_ref;
-// };
-
-// struct ServiceType
-// {
-//     gchar *service_type;
-//     AvahiSServiceBrowser *browser;
-
-//     GList *services;
-//     GtkTreeRowReference *tree_ref;
-// };
 
 struct ObjectSources2
 {
@@ -70,7 +48,8 @@ struct SystemObject2
     /* CONSIDER USING ADDRLIST (http_addrlist_t) AS IT CAN BE DIRECTLY USED TO SEND CONNECTION REQUESTS
     * (READ CUPSPM)
     */
-    GList *sources; // elements will be of type ObjectSources
+   
+    GList *sources; /* elements will be of type ObjectSources */
 
     GtkTreeRowReference *tree_ref;
 
@@ -84,129 +63,13 @@ static GtkTreeModel *sortmodel = NULL;
 static GtkTreeStore *tree_store = NULL;
 static GtkWidget *info_label = NULL;
 static AvahiServer *server = NULL;
-// static AvahiSServiceTypeBrowser *service_type_browser = NULL;
-// static GHashTable *service_type_hash_table = NULL;
 static GHashTable *system_map_hash_table2 = NULL;
-// static AvahiSServiceResolver *service_resolver = NULL;
-// static AvahiSServiceResolver *service_resolver2 = NULL;
-// static struct Service *current_service = NULL;
 static GtkWidget *hbox;
 static GtkWidget *lvbox;
 static GtkWidget *rvbox;
 static GtkWidget *scrollWindow1;
 static GtkWidget *scrollWindow2;
 
-// static struct Service *get_service(const gchar *service_type, const gchar *service_name, const gchar *domain_name, AvahiIfIndex interface, AvahiProtocol protocol)
-// {
-//     struct ServiceType *st;
-//     GList *l;
-
-//     if (!(st = g_hash_table_lookup(service_type_hash_table, service_type)))
-//         return NULL;
-
-//     for (l = st->services; l; l = l->next)
-//     {
-//         struct Service *s = l->data;
-
-//         if (s->interface == interface &&
-//             s->protocol == protocol &&
-//             avahi_domain_equal(s->service_name, service_name) &&
-//             avahi_domain_equal(s->domain_name, domain_name))
-//             return s;
-//     }
-
-//     return NULL;
-// }
-
-// static void free_service(struct Service *s)
-// {
-//     GtkTreeIter iter;
-//     GtkTreePath *path;
-
-//     if (current_service == s)
-//     {
-//         current_service = NULL;
-
-//         if (service_resolver)
-//         {
-//             avahi_s_service_resolver_free(service_resolver);
-//             service_resolver = NULL;
-//         }
-
-//         gtk_label_set_text(GTK_LABEL(info_label), "<i>Service removed</i>");
-//     }
-
-//     s->service_type->services = g_list_remove(s->service_type->services, s);
-
-//     if ((path = gtk_tree_row_reference_get_path(s->tree_ref)))
-//     {
-//         gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
-//         gtk_tree_path_free(path);
-//     }
-
-//     gtk_tree_store_remove(tree_store, &iter);
-
-//     gtk_tree_row_reference_free(s->tree_ref);
-
-//     g_free(s->service_name);
-//     g_free(s->domain_name);
-//     g_free(s);
-// }
-
-// static void service_browser_callback(
-//     AVAHI_GCC_UNUSED AvahiSServiceBrowser *b,
-//     AvahiIfIndex interface,
-//     AvahiProtocol protocol,
-//     AvahiBrowserEvent event,
-//     const char *service_name,
-//     const char *service_type,
-//     const char *domain_name,
-//     AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
-//     AVAHI_GCC_UNUSED void *userdata)
-// {
-
-//     if (event == AVAHI_BROWSER_NEW)
-//     {
-//         struct Service *s;
-//         GtkTreeIter iter, piter;
-//         GtkTreePath *path, *ppath;
-//         gchar iface[256];
-//         char name[IF_NAMESIZE];
-
-//         s = g_new(struct Service, 1);
-//         s->service_name = g_strdup(service_name);
-//         s->domain_name = g_strdup(domain_name);
-//         s->interface = interface;
-//         s->protocol = protocol;
-//         s->service_type = g_hash_table_lookup(service_type_hash_table, service_type);
-//         g_assert(s->service_type);
-
-//         s->service_type->services = g_list_prepend(s->service_type->services, s);
-
-//         ppath = gtk_tree_row_reference_get_path(s->service_type->tree_ref);
-//         gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &piter, ppath);
-
-//         snprintf(iface, sizeof(iface), "%s %s", if_indextoname(interface, name), avahi_proto_to_string(protocol));
-
-//         gtk_tree_store_append(tree_store, &iter, &piter);
-//         gtk_tree_store_set(tree_store, &iter, 0, s->service_name, 1, iface, 2, s, -1);
-
-//         path = gtk_tree_model_get_path(GTK_TREE_MODEL(tree_store), &iter);
-//         s->tree_ref = gtk_tree_row_reference_new(GTK_TREE_MODEL(tree_store), path);
-//         gtk_tree_path_free(path);
-
-//         /* Expand tree structure on program startup */
-//         gtk_tree_view_expand_row(tree_view, ppath, FALSE);
-//         gtk_tree_path_free(ppath);
-//     }
-//     else if (event == AVAHI_BROWSER_REMOVE)
-//     {
-//         struct Service *s;
-
-//         if ((s = get_service(service_type, service_name, domain_name, interface, protocol)))
-//             free_service(s);
-//     }
-// }
 struct ObjectSources2 *is_system_object_present2(
     GList *sources,
     AVAHI_GCC_UNUSED AvahiProtocol protocol,
@@ -214,8 +77,6 @@ struct ObjectSources2 *is_system_object_present2(
     const char *host_name,
     uint16_t port)
 {
-
-    // printf("%d %s\n\n", addr->data, addr->data);
 
     printf("\tis_system_object_present2: ");
 
@@ -275,26 +136,12 @@ static void add_to_system_object2(
 
     else
     {
-        //   char portString[10];
-        //   sprintf(portString, "%d", port);
-        // http_addrlist_t* addrlist = httpAddrGetList(host_name, protocol, portString);
-        // int count = 0;
-        // for (http_addrlist_t * listItem = addrlist; listItem = listItem->next; listItem != NULL) {
-        //     count++;
-        // }
-
-        // printf ("Count is %d\n\n\n", count);
 
         source = g_new(struct ObjectSources2, 1);
         source->domain_name = g_strdup(domain_name);
         source->host = g_strdup(host_name);
         source->port = port;
         source->family = protocol;
-        // /* DO SOMETHING TO COPY ADDR INTO SOURCE->ADDR */
-
-        // // copyAddr(source->addr, addr);
-        // source->addr = g_new(struct AvahiAddress, 1);
-
         so->sources = g_list_prepend(so->sources, source);
     }
 }
@@ -342,31 +189,19 @@ static void service_remove_resolver_callback2(
             {
 
                 /* Add code to remove printers and other components of system */
-                printf("Check 1\n");
                 GtkTreeIter iter;
                 GtkTreePath *path;
 
                 if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
                 {
-                printf("Check 2\n");
                     gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
-                printf("Check 3\n");
                     gtk_tree_path_free(path);
-                printf("Check 4\n");
-
-                    /* See avahi-discover-dnssd.c code, there this function is used outside this if block */
                     gtk_tree_store_remove(tree_store, &iter);
-                printf("Check 4\n");
-
                 }
 
                 gtk_tree_row_reference_free(so->tree_ref);
-                printf("Check 5\n");
                 g_free(so->object_name);
-                printf("Check 6\n");
                 g_free(so);
-                printf("Check 7\n");
-
             }
         }
     }
@@ -459,10 +294,10 @@ static void service_browser_callback2(
     AvahiIfIndex interface,
     AvahiProtocol protocol,
     AvahiBrowserEvent event,
-    const char *service_name /**< Service name, e.g. "Lennart's Files" */,
-    const char *service_type /**< DNS-SD type, e.g. "_http._tcp" */,
-    const char *domain_name /**< Domain of this service, e.g. "local" */,
-    AvahiLookupResultFlags flags, /**< Lookup flags */
+    const char *service_name,
+    const char *service_type,
+    const char *domain_name,
+    AvahiLookupResultFlags flags,
     void *userdata)
 {
 
@@ -484,47 +319,8 @@ static void service_browser_callback2(
 
 }
 
-// static void service_type_browser_callback(
-//     AVAHI_GCC_UNUSED AvahiSServiceTypeBrowser *b,
-//     AVAHI_GCC_UNUSED AvahiIfIndex interface,
-//     AVAHI_GCC_UNUSED AvahiProtocol protocol,
-//     AvahiBrowserEvent event,
-//     const char *service_type,
-//     const char *domain,
-//     AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
-//     AVAHI_GCC_UNUSED void *userdata)
-// {
-
-//     struct ServiceType *st;
-//     GtkTreePath *path;
-//     GtkTreeIter iter;
-
-//     if (event != AVAHI_BROWSER_NEW)
-//         return;
-
-//     if (g_hash_table_lookup(service_type_hash_table, service_type))
-//         return;
-
-//     st = g_new(struct ServiceType, 1);
-//     st->service_type = g_strdup(service_type);
-//     st->services = NULL;
-
-//     gtk_tree_store_append(tree_store, &iter, NULL);
-//     gtk_tree_store_set(tree_store, &iter, 0, st->service_type, 1, "", 2, NULL, -1);
-
-//     path = gtk_tree_model_get_path(GTK_TREE_MODEL(tree_store), &iter);
-//     st->tree_ref = gtk_tree_row_reference_new(GTK_TREE_MODEL(tree_store), path);
-//     gtk_tree_path_free(path);
-
-//     g_hash_table_insert(service_type_hash_table, st->service_type, st);
-
-//     st->browser = avahi_s_service_browser_new(server, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, st->service_type, domain, 0, service_browser_callback, NULL);
-// }
-
-// static void update_label(struct Service *s, const gchar *hostname, const AvahiAddress *a, guint16 port, AvahiStringList *txt)
 static void update_label2(struct SystemObject2 *so)
 {
-
 
     if (so == NULL)
     {
@@ -559,43 +355,6 @@ static void update_label2(struct SystemObject2 *so)
     printf("Label Content: \n%s\n", t);
     gtk_label_set_markup(GTK_LABEL(info_label), t);
 }
-
-// static void service_resolver_callback(
-//     AvahiSServiceResolver *r,
-//     AVAHI_GCC_UNUSED AvahiIfIndex interface,
-//     AVAHI_GCC_UNUSED AvahiProtocol protocol,
-//     AvahiResolverEvent event,
-//     AVAHI_GCC_UNUSED const char *name,
-//     AVAHI_GCC_UNUSED const char *type,
-//     AVAHI_GCC_UNUSED const char *domain,
-//     const char *host_name,
-//     const AvahiAddress *a,
-//     uint16_t port,
-//     AvahiStringList *txt,
-//     AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
-//     void *userdata)
-// {
-
-//     struct Service *s;
-//     g_assert(r);
-
-//     if (!(s = get_service_on_cursor()) || userdata != s)
-//     {
-//         g_assert(r == service_resolver);
-//         avahi_s_service_resolver_free(service_resolver);
-//         service_resolver = NULL;
-//         return;
-//     }
-
-//     if (event == AVAHI_RESOLVER_FAILURE)
-//     {
-//         char t[256];
-//         snprintf(t, sizeof(t), "<i>Failed to resolve: %s.</i>", avahi_strerror(avahi_server_errno(server)));
-//         gtk_label_set_markup(GTK_LABEL(info_label), t);
-//     }
-//     else if (event == AVAHI_RESOLVER_FOUND)
-//         update_label(s, host_name, a, port, txt);
-// }
 
 static struct SystemObject2 *get_system_object_on_cursor2(void)
 {
@@ -716,7 +475,6 @@ int main(int argc, char *argv[])
 
     /* This hashing function is for when domain_name is the key, we need separate hash function. */
 
-    // service_type_hash_table = g_hash_table_new((GHashFunc)avahi_domain_hash, (GEqualFunc)avahi_domain_equal);
     system_map_hash_table2 = g_hash_table_new((GHashFunc)avahi_domain_hash, (GEqualFunc)avahi_domain_equal);
 
     /* Need to figure out use of config or get rid of it */
@@ -728,7 +486,6 @@ int main(int argc, char *argv[])
 
     g_assert(server);
 
-    // service_type_browser = avahi_s_service_type_browser_new(server, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, argc >= 2 ? argv[1] : NULL, 0, service_type_browser_callback, NULL);
     avahi_s_service_browser_new(server, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, systemServiceType, argc >= 2 ? argv[1] : NULL, 0, service_browser_callback2, NULL);
     gtk_widget_show_all(main_window);
 

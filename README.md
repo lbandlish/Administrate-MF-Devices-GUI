@@ -15,6 +15,19 @@ sudo apt-get install libavahi-core-dev
 ```
 ## Current Progress
 
-The front page of the application is complete. 
+Currently, the program checks for running IPP System Services by using avahi based service browsers and resolvers. These System Objects are then displayed in the GUI, using treeviews and sorting options.
 
-Implemented using GtkTreeView to provide functionality to sort by any column.
+## Testing
+
+There must be discoverable IPP System Services running on the network. [Pappl](https://github.com/michaelrsweet/pappl) can be used for this. 
+
+Clone, configure and make pappl. Then run a Test System Service by executing testpappl file inside testsuite directory:
+
+```
+testsuite/testpappl
+```
+
+Now we can run this program to find the system service advertised by pappl. Execute:
+```
+./system-services-show.sh
+```
