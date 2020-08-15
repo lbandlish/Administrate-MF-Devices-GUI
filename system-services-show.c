@@ -48,7 +48,7 @@ struct SystemObject2
     /* CONSIDER USING ADDRLIST (http_addrlist_t) AS IT CAN BE DIRECTLY USED TO SEND CONNECTION REQUESTS
     * (READ CUPSPM)
     */
-   
+
     GList *sources; /* elements will be of type ObjectSources */
 
     GtkTreeRowReference *tree_ref;
@@ -170,7 +170,8 @@ static void service_remove_resolver_callback2(
      * in this list and entry corresponding to this key will be map.
      */
 
-    if (!service_name) {
+    if (!service_name)
+    {
         printf("Error: empty service_name passed to resolver\n");
     }
 
@@ -200,10 +201,15 @@ static void service_remove_resolver_callback2(
                 }
 
                 gtk_tree_row_reference_free(so->tree_ref);
+
+                g_hash_table_remove(system_map_hash_table2, service_name);
+
                 g_free(so->object_name);
                 g_free(so);
             }
         }
+
+        printf("\t Size of g_hash_table: %d\n", g_hash_table_size(system_map_hash_table2));
     }
 
     else if (event == AVAHI_RESOLVER_FAILURE)
@@ -238,11 +244,10 @@ static void service_new_resolver_callback2(
      * in this list and entry corresponding to this key will be map.
      */
 
-
-    if (!service_name) {
+    if (!service_name)
+    {
         printf("Error: empty service_name passed to resolver\n");
     }
-
 
     else if (event == AVAHI_RESOLVER_FOUND)
     {
@@ -279,6 +284,8 @@ static void service_new_resolver_callback2(
         }
 
         add_to_system_object2(so, interface, protocol, domain_name, host_name, a, port);
+
+        printf("\t Size of g_hash_table: %d\n", g_hash_table_size(system_map_hash_table2));
     }
 
     else if (event == AVAHI_RESOLVER_FAILURE)
@@ -303,31 +310,33 @@ static void service_browser_callback2(
 
     printf("\n1. service browser\n");
 
-    if (event == AVAHI_BROWSER_NEW) {
-        printf ("Browser: AVAHI_BROWSER_NEW\n");
+    if (event == AVAHI_BROWSER_NEW)
+    {
+        printf("Browser: AVAHI_BROWSER_NEW\n");
         avahi_s_service_resolver_new(server, interface, protocol, service_name, service_type, domain_name, AVAHI_PROTO_UNSPEC, 0, service_new_resolver_callback2, b);
     }
 
-    else if (event == AVAHI_BROWSER_REMOVE) {
-        printf ("Browser: AVAHI_BROWSER_REMOVE\n");
+    else if (event == AVAHI_BROWSER_REMOVE)
+    {
+        printf("Browser: AVAHI_BROWSER_REMOVE\n");
         avahi_s_service_resolver_new(server, interface, protocol, service_name, service_type, domain_name, AVAHI_PROTO_UNSPEC, 0, service_remove_resolver_callback2, b);
     }
 
-    else {
-        printf ("Browser: Non NEW/REMOVE event.\n");
+    else
+    {
+        printf("Browser: Non NEW/REMOVE event.\n");
     }
-
 }
 
 static void update_label2(struct SystemObject2 *so)
 {
+    gchar t[512];
 
     if (so == NULL)
     {
-        printf("Update Label insuccessful - System object empty (NULL)\n");
+        gtk_label_set_markup(GTK_LABEL(info_label), "Select a device from the list\n");
         return;
     }
-    gchar t[512];
 
     if (so->object_name != NULL)
     {
@@ -352,7 +361,7 @@ static void update_label2(struct SystemObject2 *so)
                  avahi_proto_to_string(s->family));
     }
 
-    printf("Label Content: \n%s\n", t);
+    // printf("Label Content: \n%s\n", t);
     gtk_label_set_markup(GTK_LABEL(info_label), t);
 }
 
@@ -365,11 +374,19 @@ static struct SystemObject2 *get_system_object_on_cursor2(void)
 
     gtk_tree_view_get_cursor(tree_view, &path, NULL);
 
+    if (!path)
+    {
+        return NULL;
+    }
+
     true_path = gtk_tree_model_sort_convert_path_to_child_path(GTK_TREE_MODEL_SORT(sortmodel),
                                                                path);
 
     if (!true_path)
+    {
+        printf("ERROR: true_path is NULL\n");
         return NULL;
+    }
 
     gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, true_path);
     gtk_tree_model_get(GTK_TREE_MODEL(tree_store), &iter, 2, &so, -1);
@@ -380,12 +397,12 @@ static struct SystemObject2 *get_system_object_on_cursor2(void)
 
 static void tree_view_on_cursor_changed2(AVAHI_GCC_UNUSED GtkTreeView *tv, AVAHI_GCC_UNUSED gpointer userdata)
 {
-    struct SystemObject2 *so;
+    struct SystemObject2 *so = get_system_object_on_cursor2();
 
-    if (!(so = get_system_object_on_cursor2()))
-        return;
-
-    printf("so contents: %s\n", so->object_name);
+    if (so)
+    {
+        printf("so contents: %s\n", so->object_name);
+    }
 
     update_label2(so);
 }
@@ -441,7 +458,10 @@ int main(int argc, char *argv[])
     gtk_box_pack_start(GTK_BOX(hbox), lvbox, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(hbox), rvbox, TRUE, TRUE, 0);
 
-    tree_view = GTK_TREE_VIEW(gtk_tree_view_new());
+    tree_store = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
+    sortmodel = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(tree_store));
+    tree_view = GTK_TREE_VIEW(gtk_tree_view_new_with_model(sortmodel));
+
     g_signal_connect(GTK_WIDGET(tree_view), "cursor-changed", (GCallback)tree_view_on_cursor_changed2, NULL);
 
     gtk_container_add(GTK_CONTAINER(lvbox), scrollWindow1);
@@ -449,10 +469,6 @@ int main(int argc, char *argv[])
     gtk_container_add(GTK_CONTAINER(rvbox), scrollWindow2);
     gtk_container_add(GTK_CONTAINER(scrollWindow2), info_label);
 
-    tree_store = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
-    sortmodel = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(tree_store));
-
-    gtk_tree_view_set_model(tree_view, GTK_TREE_MODEL(sortmodel));
     gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Name", gtk_cell_renderer_text_new(), "text", 0, NULL);
     gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Protocol", gtk_cell_renderer_text_new(), "text", 1, NULL);
     gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 0), 0);
