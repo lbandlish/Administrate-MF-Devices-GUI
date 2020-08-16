@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <net/if.h>
@@ -23,6 +24,14 @@
 #include <avahi-glib/glib-watch.h>
 #include <avahi-glib/glib-malloc.h>
 
+#include <cups/cups.h>
+// #include <assert.h>
+// #include <avahi-client/client.h>
+// #include <avahi-client/lookup.h>
+// #include <avahi-common/simple-watch.h>
+// #include <avahi-common/malloc.h>
+
+int SYS_ATTR_SIZE = 1024;
 gchar systemServiceType[] = "_ipps-system._tcp";
 
 struct ObjectSources2
@@ -53,6 +62,8 @@ struct SystemObject2
 
     GtkTreeRowReference *tree_ref;
 
+    gchar *sysattr;
+
     /* txtuuid may be useful*/
     // gchar *txtuuid
 };
@@ -69,6 +80,12 @@ static GtkWidget *lvbox;
 static GtkWidget *rvbox;
 static GtkWidget *scrollWindow1;
 static GtkWidget *scrollWindow2;
+
+int get_system_attributes(
+    http_t *http,
+    char *uri,
+    gchar *buff,
+    int buff_size);
 
 struct ObjectSources2 *is_system_object_present2(
     GList *sources,
@@ -144,6 +161,30 @@ static void add_to_system_object2(
         source->family = protocol;
         so->sources = g_list_prepend(so->sources, source);
     }
+
+    if (so->sysattr == NULL)
+    {
+        /* Get System Attributes */
+
+        char uri[1024];
+        httpAssembleURI(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL,
+                        host_name, port, "/ipp/system");
+        printf("System-uri: %s\n", uri);
+
+        http_t *http = httpConnect2(host_name, port, NULL, AF_UNSPEC, HTTP_ENCRYPTION_ALWAYS, 1, 0, NULL);
+
+        gchar buff[SYS_ATTR_SIZE];
+        if (get_system_attributes(http, uri, buff, SYS_ATTR_SIZE))
+        {
+            so->sysattr = g_strdup(buff);
+            printf("Get-system-attributes: Success\n");
+        }
+
+        else
+        {
+            printf("Get-system-attributes: Failed\n");
+        }
+    }
 }
 
 static void service_remove_resolver_callback2(
@@ -201,6 +242,7 @@ static void service_remove_resolver_callback2(
                 }
 
                 gtk_tree_row_reference_free(so->tree_ref);
+                g_free(so->sysattr);
 
                 g_hash_table_remove(system_map_hash_table2, service_name);
 
@@ -265,6 +307,7 @@ static void service_new_resolver_callback2(
             so->object_name = g_strdup(service_name);
             so->sources = NULL;
             so->tree_ref = NULL;
+            so->sysattr = NULL;
 
             gtk_tree_store_append(tree_store, &iter, NULL);
             gtk_tree_store_set(tree_store, &iter, 0, so->object_name, 1, avahi_proto_to_string(protocol), 2, so, -1);
@@ -330,7 +373,7 @@ static void service_browser_callback2(
 
 static void update_label2(struct SystemObject2 *so)
 {
-    gchar t[512];
+    gchar t[SYS_ATTR_SIZE];
 
     if (so == NULL)
     {
@@ -338,31 +381,43 @@ static void update_label2(struct SystemObject2 *so)
         return;
     }
 
-    if (so->object_name != NULL)
+    else if (so->sysattr != NULL)
+    {
+
+        gtk_label_set_markup(GTK_LABEL(info_label), so->sysattr);
+    }
+
+    else
     {
         snprintf(t, sizeof(t),
-                 "<b>System Object Name:</b> %s\n",
-                 so->object_name);
+                     "<b>GET ATTRIBUTES REQUEST UNSUCCESSFUL</b> \n\n");
+
+        if (so->object_name != NULL)
+        {
+            snprintf(t + strlen(t), sizeof(t) - strlen(t),
+                     "<b>System Object Name:</b> %s\n",
+                     so->object_name);
+        }
+
+        snprintf(t + strlen(t), sizeof(t) - strlen(t), "<b>Sources: </b>\n");
+
+        for (GList *l = so->sources; l; l = l->next)
+        {
+            struct ObjectSources2 *s = l->data;
+            snprintf(t + strlen(t), sizeof(t) - strlen(t),
+                     "<b>\t Domain name:</b> %s\n"
+                     "<b>\t Host:</b> %s\n"
+                     "<b>\t Port:</b> %d\n"
+                     "<b>\t Family(Protocol):</b> %s\n\n",
+                     s->domain_name,
+                     s->host,
+                     s->port,
+                     avahi_proto_to_string(s->family));
+        }
+
+        // printf("Label Content: \n%s\n", t);
+        gtk_label_set_markup(GTK_LABEL(info_label), t);
     }
-
-    snprintf(t + strlen(t), sizeof(t) - strlen(t), "<b>Sources: </b>\n");
-
-    for (GList *l = so->sources; l; l = l->next)
-    {
-        struct ObjectSources2 *s = l->data;
-        snprintf(t + strlen(t), sizeof(t) - strlen(t),
-                 "<b>\t Domain name:</b> %s\n"
-                 "<b>\t Host:</b> %s\n"
-                 "<b>\t Port:</b> %d\n"
-                 "<b>\t Family(Protocol):</b> %s\n\n",
-                 s->domain_name,
-                 s->host,
-                 s->port,
-                 avahi_proto_to_string(s->family));
-    }
-
-    // printf("Label Content: \n%s\n", t);
-    gtk_label_set_markup(GTK_LABEL(info_label), t);
 }
 
 static struct SystemObject2 *get_system_object_on_cursor2(void)
