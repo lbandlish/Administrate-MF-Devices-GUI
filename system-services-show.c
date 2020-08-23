@@ -1,72 +1,7 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <net/if.h>
-#include <unistd.h>
-#include <signal.h>
-#include <math.h>
-#include <time.h>
-#include <ctype.h>
-
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/mman.h>
-
-#include <gtk/gtk.h>
-#include <gtk/gtkx.h>
-
-#include <avahi-core/core.h>
-#include <avahi-core/lookup.h>
-#include <avahi-common/strlst.h>
-#include <avahi-common/domain.h>
-#include <avahi-common/error.h>
-#include <avahi-glib/glib-watch.h>
-#include <avahi-glib/glib-malloc.h>
-
-#include <cups/cups.h>
-// #include <assert.h>
-// #include <avahi-client/client.h>
-// #include <avahi-client/lookup.h>
-// #include <avahi-common/simple-watch.h>
-// #include <avahi-common/malloc.h>
+#include "administrate_mf_devices_gui.h"
 
 int SYS_ATTR_SIZE = 1024;
-gchar systemServiceType[] = "_ipps-system._tcp";
-
-struct ObjectSources2
-{
-    /* Most suited to use with httpConnect2
-     * One httpConnect2 request per ObjectSources2 object 
-     * (until connection/request is successful)
-     */
-
-    gchar *domain_name;
-    // AvahiIfIndex interface;
-    gchar *host;
-    int port;
-    int family;
-    // AvahiAddress *addr;
-};
-
-struct SystemObject2
-{
-    gchar *object_name;
-    // gchar *domain_name;
-
-    /* CONSIDER USING ADDRLIST (http_addrlist_t) AS IT CAN BE DIRECTLY USED TO SEND CONNECTION REQUESTS
-    * (READ CUPSPM)
-    */
-
-    GList *sources; /* elements will be of type ObjectSources */
-
-    GtkTreeRowReference *tree_ref;
-
-    gchar *sysattr;
-
-    /* txtuuid may be useful*/
-    // gchar *txtuuid
-};
+gchar* systemServiceType = "_ipps-system._tcp";
 
 static GtkWidget *main_window = NULL;
 static GtkTreeView *tree_view = NULL;
@@ -81,11 +16,17 @@ static GtkWidget *rvbox;
 static GtkWidget *scrollWindow1;
 static GtkWidget *scrollWindow2;
 
-int get_system_attributes(
+int get_attributes(
+	int obj_type_enum,
     http_t *http,
     char *uri,
     gchar *buff,
     int buff_size);
+
+int get_printers(http_t *http,
+				 struct SystemObject2* so,
+				 GtkTreeStore *tree_store,
+				 int buff_size);
 
 struct ObjectSources2 *is_system_object_present2(
     GList *sources,
@@ -133,6 +74,31 @@ static void remove_from_system_object2(
     }
 }
 
+void removeObject(int object_type, struct SystemObject2 *so)
+{
+    GtkTreeIter iter;
+    GtkTreePath *path;
+
+    if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
+    {
+        gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
+        gtk_tree_path_free(path);
+        gtk_tree_store_remove(tree_store, &iter);
+    }
+
+    gtk_tree_row_reference_free(so->tree_ref);
+    g_free(so->uri);
+    g_free(so->sysattr);
+
+    if (object_type == SYSTEM_OBJECT)
+    {
+        g_hash_table_remove(system_map_hash_table2, so->object_name);
+    }
+
+    g_free(so->object_name);
+    g_free(so);
+}
+
 static void add_to_system_object2(
     struct SystemObject2 *so,
     AVAHI_GCC_UNUSED AvahiIfIndex interface,
@@ -162,19 +128,26 @@ static void add_to_system_object2(
         so->sources = g_list_prepend(so->sources, source);
     }
 
-    if (so->sysattr == NULL)
+    if (so->uri == NULL)
     {
-        /* Get System Attributes */
 
         char uri[1024];
         httpAssembleURI(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL,
                         host_name, port, "/ipp/system");
-        printf("System-uri: %s\n", uri);
+
+        so->uri = g_strdup(uri);
+        printf("System-uri: %s\n", so->uri);
+    }
+
+    if ((so->uri != NULL) && (so->sysattr == NULL))
+    {
 
         http_t *http = httpConnect2(host_name, port, NULL, AF_UNSPEC, HTTP_ENCRYPTION_ALWAYS, 1, 0, NULL);
-
         gchar buff[SYS_ATTR_SIZE];
-        if (get_system_attributes(http, uri, buff, SYS_ATTR_SIZE))
+
+        /* Get System Attributes */
+
+        if (get_attributes(SYSTEM_OBJECT, http, so->uri, buff, SYS_ATTR_SIZE))
         {
             so->sysattr = g_strdup(buff);
             printf("Get-system-attributes: Success\n");
@@ -184,6 +157,32 @@ static void add_to_system_object2(
         {
             printf("Get-system-attributes: Failed\n");
         }
+    }
+
+    if ((so->uri != NULL) && (so->children == NULL))
+    {
+
+        http_t *http = httpConnect2(host_name, port, NULL, AF_UNSPEC, HTTP_ENCRYPTION_ALWAYS, 1, 0, NULL);
+
+        /* Get Printers */
+
+        if (get_printers(http, so, tree_store, SYS_ATTR_SIZE))
+        {
+            printf("Get-Printers: Success\n");
+        }
+
+        else
+        {
+            printf("Get-Printers: Failed\n");
+        }
+
+        /* Add other methods to get scanners, get queues */
+
+
+        /* Expand row */
+        GtkTreePath *ppath = gtk_tree_row_reference_get_path(so->tree_ref);
+        gtk_tree_view_expand_row(tree_view, ppath, FALSE);
+        gtk_tree_path_free(ppath);
     }
 }
 
@@ -230,24 +229,17 @@ static void service_remove_resolver_callback2(
             if (so->sources == NULL)
             {
 
-                /* Add code to remove printers and other components of system */
-                GtkTreeIter iter;
-                GtkTreePath *path;
+                /* Add code to remove other components (scanners, print queue) of system */
 
-                if ((path = gtk_tree_row_reference_get_path(so->tree_ref)))
+                for (GList *l = so->children; l; l = l->next)
                 {
-                    gtk_tree_model_get_iter(GTK_TREE_MODEL(tree_store), &iter, path);
-                    gtk_tree_path_free(path);
-                    gtk_tree_store_remove(tree_store, &iter);
+                    removeObject(PRINTER_OBJECT, (struct SystemObject2 *)(l->data));
                 }
 
-                gtk_tree_row_reference_free(so->tree_ref);
-                g_free(so->sysattr);
+                g_list_free(so->children);
+                so->children = NULL;
 
-                g_hash_table_remove(system_map_hash_table2, service_name);
-
-                g_free(so->object_name);
-                g_free(so);
+                removeObject(SYSTEM_OBJECT, so);
             }
         }
 
@@ -304,13 +296,16 @@ static void service_new_resolver_callback2(
         {
             printf("3. create System Object\n");
             so = g_new(struct SystemObject2, 1);
+            so->object_type = SYSTEM_OBJECT;
             so->object_name = g_strdup(service_name);
             so->sources = NULL;
+            so->children = NULL;
             so->tree_ref = NULL;
+            so->uri = NULL;
             so->sysattr = NULL;
 
             gtk_tree_store_append(tree_store, &iter, NULL);
-            gtk_tree_store_set(tree_store, &iter, 0, so->object_name, 1, avahi_proto_to_string(protocol), 2, so, -1);
+            gtk_tree_store_set(tree_store, &iter, 0, so->object_name, 1, obj_type_string(so->object_type), 2, so, -1);
             path = gtk_tree_model_get_path(GTK_TREE_MODEL(tree_store), &iter);
             so->tree_ref = gtk_tree_row_reference_new(GTK_TREE_MODEL(tree_store), path);
             gtk_tree_path_free(path);
@@ -390,7 +385,7 @@ static void update_label2(struct SystemObject2 *so)
     else
     {
         snprintf(t, sizeof(t),
-                     "<b>GET ATTRIBUTES REQUEST UNSUCCESSFUL</b> \n\n");
+                 "<b>GET ATTRIBUTES REQUEST UNSUCCESSFUL</b> \n\n");
 
         if (so->object_name != NULL)
         {
@@ -475,8 +470,8 @@ int main(int argc, char *argv[])
     GtkTreeViewColumn *col2;
     gint error;
     AvahiGLibPoll *poll_api;
-    gint window_width = 700;
-    gint window_height = 400;
+    gint window_width = 1000;
+    gint window_height = 600;
 
     gtk_init(&argc, &argv);
 
@@ -525,7 +520,7 @@ int main(int argc, char *argv[])
     gtk_container_add(GTK_CONTAINER(scrollWindow2), info_label);
 
     gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Name", gtk_cell_renderer_text_new(), "text", 0, NULL);
-    gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Protocol", gtk_cell_renderer_text_new(), "text", 1, NULL);
+    gtk_tree_view_insert_column_with_attributes(tree_view, -1, "Object Type", gtk_cell_renderer_text_new(), "text", 1, NULL);
     gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 0), 0);
     gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 1), 1);
     gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sortmodel), 0, GTK_SORT_ASCENDING);
@@ -544,6 +539,7 @@ int main(int argc, char *argv[])
     gtk_tree_view_column_set_expand(col1, TRUE);
     gtk_tree_view_column_set_expand(col2, TRUE);
 
+
     /* This hashing function is for when domain_name is the key, we need separate hash function. */
 
     system_map_hash_table2 = g_hash_table_new((GHashFunc)avahi_domain_hash, (GEqualFunc)avahi_domain_equal);
@@ -558,6 +554,7 @@ int main(int argc, char *argv[])
     g_assert(server);
 
     avahi_s_service_browser_new(server, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, systemServiceType, argc >= 2 ? argv[1] : NULL, 0, service_browser_callback2, NULL);
+
     gtk_widget_show_all(main_window);
 
     gtk_main();
