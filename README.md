@@ -15,19 +15,21 @@ sudo apt-get install libavahi-core-dev
 ```
 ## Current Progress
 
-Currently, the program checks for running IPP System Services by using avahi based service browsers and resolvers. These System Objects are then displayed in the GUI, using treeviews and sorting options.
+The program checks for running IPP System Services by using avahi based service browsers and resolvers. Then using IPP Requests, attributes of System Service and its component MF devices are obtained.
+
+All of these objects are then displayed in the GUI in a hierarchical fashion using TreeViews. Sorting functionality is also implemented. Selecting any object displays its attributes in the sidebar. The program updates the object list in real-time by listening to service browser events.
 
 ## Testing
 
 There must be discoverable IPP System Services running on the network. [Pappl](https://github.com/michaelrsweet/pappl) can be used for this. 
 
-Clone, configure and make pappl. Then run a Test System Service by executing testpappl file inside testsuite directory:
+Clone, configure and make pappl. Then run a Test System Service by executing testpappl file inside testsuite directory (See testpappl --help to see what flags can be used.):
 
 ```
 testsuite/testpappl
 ```
 
-Now we can run this program to find the system service advertised by pappl. Execute:
+Now we can run this program to find the system service advertised by pappl and its component printers. Execute:
 ```
 ./system-services-show.sh
 ```
