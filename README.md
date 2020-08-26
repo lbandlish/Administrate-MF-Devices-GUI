@@ -9,17 +9,17 @@ advantages in that no software needs to be installed on the system and hence the
 operating system independence. But these interfaces are manufacturer-dependent,
 and hence automation scripts need to be written separately for different printers.
 Also, local print queues are managed using local printer tools, while administration
-interfaces runon browsers. To eliminate these issues, PWG introduced IPP System
-Service Standard which us es IPP requests to poll printer capabilities and configure the
+interfaces run on browsers. To eliminate these issues, PWG introduced IPP System
+Service Standard which uses IPP requests to poll printer capabilities and configure the
 printer, thus providing a universal solution for IPP-compliant printers.
-This project involves buildinga printer configuration system with a GTK-based GUI
+This project involves building a printer configuration system with a GTK-based GUI
 that can be embedded in the GNOME Control Center to bring all printer management
 control in one place.
 
 
 ## Work Done
 
-The program checks for running IPP System Services by using avahi based service browsers and resolvers. The information received is then used to create IPP System Object uri(s). Then using IPP Requests, attributes of this System Object and its component devices are obtained and stored in memory.
+The program checks for running IPP System Services by using avahi based service browsers and resolvers. The information received is then used to create IPP System Object uri(s). Then using IPP Requests, attributes of these System Objects and their component devices are obtained and stored in memory.
 
 All of these objects are then displayed in the GUI in a hierarchical fashion using TreeViews. Sorting functionality is also implemented. Selecting any object displays its attributes in the sidebar. The program updates the object list in real-time by listening to service browser events.
 
@@ -55,3 +55,7 @@ Now we can run this program. Execute (inside this project's directory):
 ```
 ./system-services-show.sh
 ```
+
+## Acknowledgements
+
+I would like to thank all my mentors for helping me out with this project. A special thanks to my mentor Mr. Michael Sweet, who has been there to answer all my queries and help me out everytime I got stuck. I am thankful to have gotten this project and it was a great learning experience.
