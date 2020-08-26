@@ -32,15 +32,15 @@ typedef enum obj_type
     PRINTER_OBJECT,
     SCANNER_OBJECT,
     PRINTER_QUEUE
-    
+
 } obj_type;
 
-gchar* obj_type_string(int object_type);
+gchar *obj_type_string(int object_type);
 
-struct ObjectSources2
+struct ObjectSources
 {
     /* Most suited to use with httpConnect2
-     * One httpConnect2 request per ObjectSources2 object 
+     * One httpConnect2 request per ObjectSources object 
      * (until connection/request is successful)
      */
 
@@ -52,7 +52,7 @@ struct ObjectSources2
     // AvahiAddress *addr;
 };
 
-struct SystemObject2
+struct IppObject
 {
     gchar *object_name;
     obj_type object_type;
@@ -61,7 +61,7 @@ struct SystemObject2
     GtkTreeRowReference *tree_ref;
 
     gchar *uri;
-    gchar *sysattr;
+    gchar *objAttr;
 
     GList *children; /* elements will be printers, queues, scanners under system object. NULL for all except SYSTEM_OBJECT */
     GList *sources;  /* elements will be of type ObjectSources, NULL for all except SYSTEM_OBJECT */
