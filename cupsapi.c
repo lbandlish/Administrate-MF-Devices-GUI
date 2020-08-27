@@ -23,6 +23,9 @@ typedef struct add_attribute_data
 
 /*
  * Converts object_type enum to string value
+ * Returns: 
+ * 			String representation of object_type enum if valid object_type given.
+ * 			NULL otherwise.
  */
 
 gchar *obj_type_string(int object_type) // type of object (enum value)
@@ -46,10 +49,19 @@ gchar *obj_type_string(int object_type) // type of object (enum value)
 	{
 		return "Printer Object";
 	}
+
+	else
+	{
+		printf("Error: Invalid object_type passed to obj_type_string.\n");
+		return NULL;
+	}
 }
 
 /*
  * See if last cups request succeeded.
+ * Returns: 
+ * 			0 if request succeeded.
+ * 			1 if request failed.
  */
 
 static int check_if_cups_request_error()
@@ -116,6 +128,9 @@ static void add_attribute(
 
 /*
  * Get-System-Attributes or Get-(Object)-Attributes Operation
+ * Returns:
+ * 			1 if success
+ * 			0 if failure
  */
 
 int get_attributes(
@@ -189,6 +204,9 @@ int get_attributes(
 
 /*
  * Get-Printers Operation
+ * Returns:
+ 			1 if success
+ 			0 if failure
  */
 
 int get_printers(http_t *http,			   // http connection

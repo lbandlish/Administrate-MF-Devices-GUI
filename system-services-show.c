@@ -43,6 +43,9 @@ int get_printers(http_t *http,
 
 /*
  * Compares ObjectSources attributes of system object with newly discovered attributes.
+ * Returns: 
+ *          ObjectSources if any match.
+ *          NULL otherwise
  */
 
 struct ObjectSources *is_system_object_present(
@@ -133,7 +136,6 @@ void remove_object(
     g_free(so->object_name);
     g_free(so);
 }
-
 
 /*
  * Add newly discovered sources to System Object in case of new event.
@@ -423,6 +425,9 @@ static void update_label(struct IppObject *so) // Currently selected IppObject
 
 /*
  * Get currently selected object from GUI
+ * Returns: 
+ *          Selected IppObject if any entry is selected.
+ *          NULL otherwise
  */
 
 static struct IppObject *get_object_on_cursor(void)
