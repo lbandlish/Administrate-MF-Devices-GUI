@@ -1,7 +1,20 @@
+/*
+ * system-services-show.c
+ * 
+ * This file performs 2 main tasks:
+ *      1. Setting up the GUI for the project.
+ *      2. Browsing and Resolving browser events to find system service instances.
+ * 
+ */
+
 #include "administrate_mf_devices_gui.h"
 
-int OBJ_ATTR_SIZE = 1024;
-gchar *systemServiceType = "_ipps-system._tcp";
+int OBJ_ATTR_SIZE = 1024;                       // Modify this field to increase character limit of objAttr field of IppObject
+gchar *systemServiceType = "_ipps-system._tcp"; // Service type to browse for.
+
+/*
+ * Global variables to access GUI and IPP objects
+ */
 
 static GtkWidget *main_window = NULL;
 static GtkTreeView *tree_view = NULL;
@@ -28,12 +41,16 @@ int get_printers(http_t *http,
                  GtkTreeStore *tree_store,
                  int buff_size);
 
+/*
+ * Compares ObjectSources attributes of system object with newly discovered attributes.
+ */
+
 struct ObjectSources *is_system_object_present(
-    GList *sources,
-    AVAHI_GCC_UNUSED AvahiProtocol protocol,
-    AVAHI_GCC_UNUSED const char *domain_name,
-    const char *host_name,
-    uint16_t port)
+    GList *sources,                           // Objectsources (sources) attribute of system object to compare with
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,  // protocol discovered
+    AVAHI_GCC_UNUSED const char *domain_name, // domain discovered
+    const char *host_name,                    // host name discovered.
+    uint16_t port)                            // port discovered.
 {
 
     for (GList *l = sources; l; l = l->next)
@@ -53,14 +70,16 @@ struct ObjectSources *is_system_object_present(
     return NULL;
 }
 
+/*
+ * In case of a remove event, remove the sources that no longer exist.
+ */
+
 static void remove_from_system_object(
-    struct IppObject *so,
-    AVAHI_GCC_UNUSED AvahiIfIndex interface,
-    AVAHI_GCC_UNUSED AvahiProtocol protocol,
-    AVAHI_GCC_UNUSED const char *domain_name,
-    const char *host_name,
-    const AvahiAddress *addr,
-    uint16_t port)
+    struct IppObject *so,                     // system object to remove sources from
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,  // protocol in remove event
+    AVAHI_GCC_UNUSED const char *domain_name, // domain name of remove event
+    const char *host_name,                    // host name in remove event
+    uint16_t port)                            // port in remove event
 {
     struct ObjectSources *source = NULL;
 
@@ -70,8 +89,28 @@ static void remove_from_system_object(
     }
 }
 
-void remove_object(int object_type, struct IppObject *so)
+/*
+ * Remove entire IppObject.
+ * NOTE: Call this on a System Object, it will automatically delete its children.
+ */
+
+void remove_object(
+    int object_type,      // type of IppObject (enum)
+    struct IppObject *so) // IppObject to remove
 {
+
+    if (object_type == SYSTEM_OBJECT)
+    {
+
+        for (GList *l = so->children; l; l = l->next)
+        {
+            remove_object(((struct IppObject *)(l->data))->object_type, (struct IppObject *)(l->data));
+        }
+
+        g_list_free(so->children);
+        so->children = NULL;
+    }
+
     GtkTreeIter iter;
     GtkTreePath *path;
 
@@ -95,20 +134,22 @@ void remove_object(int object_type, struct IppObject *so)
     g_free(so);
 }
 
+
+/*
+ * Add newly discovered sources to System Object in case of new event.
+ */
+
 static void add_to_system_object(
-    struct IppObject *so,
-    AVAHI_GCC_UNUSED AvahiIfIndex interface,
-    AVAHI_GCC_UNUSED AvahiProtocol protocol,
-    AVAHI_GCC_UNUSED const char *domain_name,
-    const char *host_name,
-    const AvahiAddress *addr,
-    uint16_t port)
+    struct IppObject *so,                     // system object to add sources to
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,  // protocol in new event
+    AVAHI_GCC_UNUSED const char *domain_name, // domain name of new event
+    const char *host_name,                    // host name in new event
+    uint16_t port)                            // port in new event
 {
     struct ObjectSources *source = NULL;
 
     if (source = is_system_object_present(so->sources, protocol, domain_name, host_name, port))
     {
-
         /* Object already added */
         return;
     }
@@ -180,6 +221,10 @@ static void add_to_system_object(
     }
 }
 
+/*
+ * Resolver for AVAHI_BROWSER_REMOVE event.
+ */
+
 static void service_remove_resolver_callback(
     AvahiSServiceResolver *r,
     AVAHI_GCC_UNUSED AvahiIfIndex interface,
@@ -196,14 +241,6 @@ static void service_remove_resolver_callback(
     void *userdata)
 {
 
-    /* Can add code to quit when encountering AVAHI_BROWSER_FAILURE event */
-
-    /* Need to create separate hash map for printers.
-     * (all of these maps can be stored in some sort of list)
-     * service_type is passed and this can be some sort of key
-     * in this list and entry corresponding to this key will be map.
-     */
-
     if (!service_name)
     {
         printf("Error: empty service_name passed to resolver\n");
@@ -216,26 +253,14 @@ static void service_remove_resolver_callback(
         if (so = g_hash_table_lookup(system_map_hash_table, service_name))
         {
 
-            remove_from_system_object(so, interface, protocol, domain_name, host_name, a, port);
+            remove_from_system_object(so, protocol, domain_name, host_name, port);
 
-            /* Check if system_object is empty */
+            /* Checking if system_object is empty */
             if (so->sources == NULL)
             {
-
-                /* Add code to remove other components (scanners, print queue) of system */
-
-                for (GList *l = so->children; l; l = l->next)
-                {
-                    remove_object(PRINTER_OBJECT, (struct IppObject *)(l->data));
-                }
-
-                g_list_free(so->children);
-                so->children = NULL;
-
                 remove_object(SYSTEM_OBJECT, so);
             }
         }
-
     }
 
     else if (event == AVAHI_RESOLVER_FAILURE)
@@ -245,6 +270,10 @@ static void service_remove_resolver_callback(
 
     avahi_s_service_resolver_free(r);
 }
+
+/*
+ * Resolver for AVAHI_BROWSER_NEW event.
+ */
 
 static void service_new_resolver_callback(
     AvahiSServiceResolver *r,
@@ -261,14 +290,6 @@ static void service_new_resolver_callback(
     AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
     void *userdata)
 {
-
-    /* Can add code to quit when encountering AVAHI_BROWSER_FAILURE event */
-
-    /* Need to create separate hash map for printers.
-     * (all of these maps can be stored in some sort of list)
-     * service_type is passed and this can be some sort of key
-     * in this list and entry corresponding to this key will be map.
-     */
 
     if (!service_name)
     {
@@ -299,11 +320,9 @@ static void service_new_resolver_callback(
             gtk_tree_path_free(path);
 
             g_hash_table_insert(system_map_hash_table, so->object_name, so);
-
-            /* Add code to check and display printers and other components of system */
         }
 
-        add_to_system_object(so, interface, protocol, domain_name, host_name, a, port);
+        add_to_system_object(so, protocol, domain_name, host_name, port);
     }
 
     else if (event == AVAHI_RESOLVER_FAILURE)
@@ -313,6 +332,11 @@ static void service_new_resolver_callback(
 
     avahi_s_service_resolver_free(r);
 }
+
+/*
+ * Service Browser Callback function.
+ * Creates service resolvers to handle AVAHI_BROWSER_NEW and AVAHI_BROWSER_REMOVE events.
+ */
 
 static void service_browser_callback(
     AvahiSServiceBrowser *b,
@@ -344,7 +368,11 @@ static void service_browser_callback(
     }
 }
 
-static void update_label(struct IppObject *so)
+/*
+ * Update sidebar to show attributes of currently selected IppObject
+ */
+
+static void update_label(struct IppObject *so) // Currently selected IppObject
 {
     gchar t[OBJ_ATTR_SIZE];
 
@@ -393,6 +421,10 @@ static void update_label(struct IppObject *so)
     }
 }
 
+/*
+ * Get currently selected object from GUI
+ */
+
 static struct IppObject *get_object_on_cursor(void)
 {
     GtkTreePath *path;
@@ -422,6 +454,11 @@ static struct IppObject *get_object_on_cursor(void)
     gtk_tree_path_free(true_path);
     return so;
 }
+
+/*
+ * Callback function for cursor-changed event
+ * Calls functions to see currently select IppObject and update sidebar accordingly
+ */
 
 static void tree_view_on_cursor_changed(AVAHI_GCC_UNUSED GtkTreeView *tv, AVAHI_GCC_UNUSED gpointer userdata)
 {
@@ -498,8 +535,6 @@ int main(int argc, char *argv[])
     gtk_tree_view_column_set_sort_column_id(gtk_tree_view_get_column(tree_view, 1), 1);
     gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sortmodel), 0, GTK_SORT_ASCENDING);
 
-    /* Need to see if next formattings are needed or not */
-
     gtk_tree_view_column_set_resizable(col1 = gtk_tree_view_get_column(tree_view, 0), TRUE);
     gtk_tree_view_column_set_resizable(col2 = gtk_tree_view_get_column(tree_view, 1), TRUE);
 
@@ -512,11 +547,9 @@ int main(int argc, char *argv[])
     gtk_tree_view_column_set_expand(col1, TRUE);
     gtk_tree_view_column_set_expand(col2, TRUE);
 
-    /* This hashing function is for when domain_name is the key, we need separate hash function. */
+    /* Using avahi_domain_hash as the hashing function. Can use different hash function. */
 
     system_map_hash_table = g_hash_table_new((GHashFunc)avahi_domain_hash, (GEqualFunc)avahi_domain_equal);
-
-    /* Need to figure out use of config or get rid of it */
 
     avahi_server_config_init(&config);
     config.publish_hinfo = config.publish_addresses = config.publish_domain = config.publish_workstation = FALSE;
@@ -528,7 +561,6 @@ int main(int argc, char *argv[])
     avahi_s_service_browser_new(server, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, systemServiceType, argc >= 2 ? argv[1] : NULL, 0, service_browser_callback, NULL);
 
     gtk_widget_show_all(main_window);
-
     gtk_main();
 
     avahi_server_free(server);

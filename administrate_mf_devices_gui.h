@@ -1,3 +1,11 @@
+/*
+ * administrate_mf_devices_gui.h
+ * 
+ * This header file includes all the libraries required to compile the code.
+ * It also defines structs and enums used throughout this project.
+ * 
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -39,17 +47,10 @@ gchar *obj_type_string(int object_type);
 
 struct ObjectSources
 {
-    /* Most suited to use with httpConnect2
-     * One httpConnect2 request per ObjectSources object 
-     * (until connection/request is successful)
-     */
-
     gchar *domain_name;
-    // AvahiIfIndex interface;
     gchar *host;
     int port;
     int family;
-    // AvahiAddress *addr;
 };
 
 struct IppObject
@@ -57,15 +58,11 @@ struct IppObject
     gchar *object_name;
     obj_type object_type;
 
-    // gchar *domain_name;
     GtkTreeRowReference *tree_ref;
 
     gchar *uri;
     gchar *objAttr;
 
-    GList *children; /* elements will be printers, queues, scanners under system object. NULL for all except SYSTEM_OBJECT */
+    GList *children; /* elements will be printers, queues, scanners. NULL for all except SYSTEM_OBJECT */
     GList *sources;  /* elements will be of type ObjectSources, NULL for all except SYSTEM_OBJECT */
-
-    /* txtuuid may be useful*/
-    // gchar *txtuuid
 };

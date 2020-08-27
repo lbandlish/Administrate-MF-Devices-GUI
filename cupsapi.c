@@ -1,6 +1,31 @@
+/*
+ * cupsapi.c
+ * 
+ * This file contains functions to make IPP Requests and parse IPP responses. 
+ * Gateway for communication between GUI and IPP Objects.
+ *
+ */
+
 #include "administrate_mf_devices_gui.h"
 
-gchar *obj_type_string(int object_type)
+/*
+ * Local data structure used to pass around values
+ */
+
+typedef struct add_attribute_data
+{
+
+	ipp_t *response;
+	gchar *buff;
+	int buff_size;
+
+} add_attribute_data;
+
+/*
+ * Converts object_type enum to string value
+ */
+
+gchar *obj_type_string(int object_type) // type of object (enum value)
 {
 	if (object_type == SYSTEM_OBJECT)
 	{
@@ -23,6 +48,10 @@ gchar *obj_type_string(int object_type)
 	}
 }
 
+/*
+ * See if last cups request succeeded.
+ */
+
 static int check_if_cups_request_error()
 {
 
@@ -40,19 +69,14 @@ static int check_if_cups_request_error()
 	}
 }
 
-typedef struct add_attribute_data
-{
-
-	ipp_t *response;
-	gchar *buff;
-	int buff_size;
-
-} add_attribute_data;
+/*
+ * Adds attribute and its value to Object
+ */
 
 static void add_attribute(
-	char *attr_name,
-	ipp_tag_t value_tag,
-	add_attribute_data data)
+	char *attr_name,		 // IPP Attribute to be added to object description
+	ipp_tag_t value_tag,	 // Type of Attribute
+	add_attribute_data data) // Contains IPP response, buffer to add attribute to, and buffer size
 {
 
 	ipp_t *response = data.response;
@@ -90,12 +114,16 @@ static void add_attribute(
 	}
 }
 
+/*
+ * Get-System-Attributes or Get-(Object)-Attributes Operation
+ */
+
 int get_attributes(
-	int obj_type_enum,
-	http_t *http,
-	gchar *uri,
-	gchar *buff,
-	int buff_size)
+	int obj_type_enum, // type of object (enum value)
+	http_t *http,	   // http connection
+	gchar *uri,		   // object uri
+	gchar *buff,	   // buffer to add attributes to
+	int buff_size)	   // buffer size
 {
 
 	int operation;
@@ -159,10 +187,14 @@ int get_attributes(
 	return 1;
 }
 
-int get_printers(http_t *http,
-				 struct IppObject *so,
-				 GtkTreeStore *tree_store,
-				 int buff_size)
+/*
+ * Get-Printers Operation
+ */
+
+int get_printers(http_t *http,			   // http connection
+				 struct IppObject *so,	   // system object (on which get_printers is to be run)
+				 GtkTreeStore *tree_store, // tree_store of GUI treeview (to add printers to GUI)
+				 int buff_size)			   // size of object attribute field
 {
 	gchar *uri = so->uri;
 	GtkTreeRowReference *tree_ref = so->tree_ref;
